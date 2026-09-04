@@ -1,48 +1,84 @@
 :root {
-  --primary: #1a73e8;
-  --primary-dark: #0d47a1;
-  --accent: #00bfa5;
-  --bg: #f8f9fc;
+  --primary: #c1272d;
+  --primary-dark: #8f1c20;
+  --primary-light: #fde8e9;
+  --accent: #c1272d;
+  --bg: #f7f7f7;
   --card: #ffffff;
-  --text: #202124;
-  --muted: #5f6368;
-  --border: #e8eaed;
-  --radius: 12px;
+  --text: #222222;
+  --muted: #6b6b6b;
+  --border: #e5e5e5;
+  --radius: 4px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
 }
 * { box-sizing: border-box; margin:0; padding:0; }
-body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); line-height:1.6; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background: #fff; color: var(--text); line-height:1.65; }
 a { color: var(--primary); text-decoration:none; }
-a:hover { text-decoration:underline; }
+a:hover { color: var(--primary-dark); text-decoration:underline; }
 .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
-nav.navbar { background: white; border-bottom: 1px solid var(--border); position: sticky; top:0; z-index:10; }
-.navbar-inner { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; max-width:1100px; margin:0 auto; }
-.brand { font-weight:800; font-size:22px; color: var(--primary-dark); letter-spacing: -0.5px; }
-.brand span { color: var(--accent); }
-.nav-links { display:flex; gap:18px; align-items:center; }
-.nav-links a, .nav-links button { font-size:14px; font-weight:600; }
-.btn { background: var(--primary); color:white; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:600; }
-.btn:hover { background: var(--primary-dark); }
-.btn-outline { background:white; color:var(--primary); border:1px solid var(--primary); }
-.btn-small { padding:6px 12px; font-size:13px; }
-.btn-danger { background:#d93025; }
-.card { background: var(--card); border:1px solid var(--border); border-radius: var(--radius); padding:20px; margin-bottom:16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
-.hero { background: #aecbfa; color:#0d47a1; padding:48px 20px; text-align:center; border-bottom:1px solid #8ab4f8; }
-.hero h1 { font-size:36px; margin-bottom:10px; }
-.hero p { opacity:0.92; font-size:16px; }
-.grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap:16px; }
-.section-img { width:100%; max-height:320px; object-fit:cover; border-radius:10px; margin-bottom:12px; }
-.post-card { border-left:4px solid var(--primary); }
-.post-meta { color:var(--muted); font-size:13px; margin-bottom:8px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-.badge { background:#e8f0fe; color:var(--primary-dark); padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
-.divider { height:1px; background: var(--border); margin:24px 0; }
-.input, .textarea, .select { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; margin-top:6px; }
-.textarea { min-height:90px; resize:vertical; }
-.label { font-weight:600; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
-.edit-section { border:1px dashed #c2c8d0; border-radius:10px; padding:16px; margin-bottom:12px; background:#fcfdff; }
-.section-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-.admin-bar { background:#fff3cd; border:1px solid #ffe69c; padding:10px 14px; border-radius:8px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; }
-.tabs { display:flex; gap:8px; margin:18px 0; }
-.tab { padding:8px 14px; border-radius:999px; border:1px solid var(--border); background:white; cursor:pointer; font-weight:600; font-size:14px; }
+
+/* Top logo bar like aylus.org */
+.site-header { background: white; text-align:center; padding: 18px 20px 14px; border-bottom: 1px solid #eee; }
+.site-header img { max-width: 420px; width: 100%; height:auto; }
+.site-tagline { font-size:13px; color:#555; letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
+
+/* Navbar - dark like aylus.org Frontier theme */
+nav.navbar { background: #222; border-bottom: 3px solid var(--primary); position: sticky; top:0; z-index:20; }
+.navbar-inner { display:flex; align-items:center; justify-content:flex-start; padding:0 20px; max-width:1100px; margin:0 auto; }
+.nav-links { display:flex; gap:0; align-items:center; }
+.nav-links a { font-size:13px; font-weight:600; padding:14px 16px; color:#eee; text-transform:uppercase; letter-spacing:0.5px; border-right:1px solid #333; }
+.nav-links a:hover { background:#333; color:white; text-decoration:none; }
+.nav-links a.active { background: var(--primary); color:white; }
+
+/* Buttons - aylus style squared */
+.btn { background: var(--primary); color:white; border:none; padding:9px 18px; border-radius:2px; cursor:pointer; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:0.5px; transition: all .15s; display:inline-flex; align-items:center; gap:6px; }
+.btn:hover { background: var(--primary-dark); color:white; text-decoration:none; }
+.btn-outline { background:white; color:var(--primary); border:1.5px solid var(--primary); }
+.btn-outline:hover { background: var(--primary-light); }
+.btn-small { padding:7px 14px; font-size:12px; }
+.btn-danger { background:#222; }
+.btn-danger:hover { background:#000; }
+
+/* Hero - clean white like aylus.org Welcome section */
+.hero { background: white; color:#222; padding:40px 20px 36px; text-align:center; border-bottom: 1px solid #eee; }
+.hero h1 { font-size:34px; font-weight:800; color: var(--primary); letter-spacing:-0.5px; margin-bottom:10px; font-family: Georgia, 'Times New Roman', serif; }
+.hero p { color:#444; font-size:15px; max-width:680px; margin:0 auto; line-height:1.6; }
+.hero .btn { margin: 4px; }
+
+/* Stats bar like aylus "197 BRANCHES..." - subtle */
+.hero-stats { display:flex; justify-content:center; gap:40px; margin-top:26px; flex-wrap:wrap; border-top:1px solid #f0f0f0; padding-top:22px; max-width:720px; margin-left:auto; margin-right:auto; }
+.hero-stat { text-align:center; }
+.hero-stat strong { display:block; font-size:28px; color: var(--primary); line-height:1; }
+.hero-stat span { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#777; }
+
+/* Cards - aylus post style */
+.card { background: var(--card); border:1px solid var(--border); border-radius: var(--radius); padding:20px; margin-bottom:16px; box-shadow: var(--shadow-sm); }
+.grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap:18px; }
+.section-img { width:100%; max-height:340px; object-fit:cover; border-radius:2px; margin-bottom:14px; border:1px solid var(--border); }
+.post-card { border-left:3px solid var(--primary); }
+.post-card h3 { font-family: Georgia, serif; color:#222; }
+.post-meta { color:var(--muted); font-size:12px; margin-bottom:8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; text-transform:uppercase; letter-spacing:0.5px; }
+.badge { background: #222; color:white; padding:3px 8px; border-radius:2px; font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
+.divider { height:1px; background: var(--border); margin:28px 0; }
+.input, .textarea, .select { width:100%; padding:10px 12px; border:1px solid #ccc; border-radius:2px; font-size:14px; margin-top:6px; background:white; }
+.input:focus, .textarea:focus { outline:none; border-color: var(--primary); }
+.textarea { min-height:110px; resize:vertical; line-height:1.6; }
+.label { font-weight:700; font-size:11px; color:#555; text-transform:uppercase; letter-spacing:0.8px; }
+.edit-section { border:1px dashed #ccc; border-radius:4px; padding:16px; margin-bottom:14px; background:#fafafa; }
+.section-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.admin-bar { background:#fffde7; border:1px solid #f9e79f; padding:10px 14px; border-radius:4px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+.tabs { display:flex; gap:6px; margin:20px 0; border-bottom:1px solid var(--border); padding-bottom:10px; }
+.tab { padding:7px 14px; border-radius:2px; border:1px solid var(--border); background:white; cursor:pointer; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color: var(--muted); }
+.tab:hover { border-color: var(--primary); color: var(--primary); text-decoration:none; }
 .tab.active { background: var(--primary); color:white; border-color: var(--primary); }
-img.preview { max-width:220px; max-height:160px; border-radius:8px; border:1px solid var(--border); margin-top:8px; display:block; }
-.upload-row { display:flex; gap:8px; align-items:center; margin-top:8px; }
+img.preview { max-width:240px; max-height:180px; border-radius:2px; border:1px solid var(--border); margin-top:10px; display:block; }
+.upload-row { display:flex; gap:10px; align-items:center; margin-top:8px; }
+
+footer { background: #222; color:#aaa; border-top:3px solid var(--primary); margin-top:40px; padding:24px; text-align:center; font-size:12px; }
+footer a { color:#ddd; }
+
+h1,h2,h3 { font-family: Georgia, 'Times New Roman', serif; }
+h2 { font-size:22px; font-weight:800; color:#222; border-left:4px solid var(--primary); padding-left:10px; }
+h3 { font-size:17px; font-weight:700; }
