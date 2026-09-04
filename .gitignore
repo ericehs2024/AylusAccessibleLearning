@@ -1,7 +1,30 @@
-﻿node_modules/
+﻿# dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# build
 dist/
+frontend/dist/
+backend/dist/
+
+# uploads
 uploads/
+backend/uploads/
+frontend/uploads/
+
+# env - ignore all except example
 .env
 .env.local
-backend/uploads/
-frontend/dist/
+.env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# logs
+npm-debug.log*
