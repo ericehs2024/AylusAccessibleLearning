@@ -1,0 +1,69 @@
+{
+  "branches": [
+    {
+      "id": "branch1",
+      "name": "branch1",
+      "username": "branch1",
+      "passwordHash": "$2a$10$rMuTxrx7e5TKgLe0oltUJeoEW/3vW298/Gr5idvKZ/jOreH1KeGTa",
+      "home": {
+        "title": "Welcome to Branch 1 - Aylus",
+        "sections": [
+          {
+            "id": "s1",
+            "image": "",
+            "text": "Branch 1 is dedicated to tutoring and volunteering in our local community. We host weekly tutoring sessions and community service events."
+          },
+          {
+            "id": "s2",
+            "image": "",
+            "text": "Join us to make a difference! Contact branch1 for upcoming opportunities."
+          }
+        ]
+      }
+    },
+    {
+      "id": "branch2",
+      "name": "Branch 2 - Westside",
+      "username": "branch2",
+      "passwordHash": "$2a$10$QCvNNsMpmAJ5IabB17pUz.UZilByW3X1AZ8UK987SXcej5DItbKsG",
+      "home": {
+        "title": "Welcome to Branch 2 - Westside Chapter",
+        "sections": [
+          {
+            "id": "s3",
+            "image": "",
+            "text": "Westside chapter focuses on STEM volunteering and accessibility education."
+          }
+        ]
+      }
+    }
+  ],
+  "posts": [
+    {
+      "id": "post1",
+      "branchId": "branch1",
+      "title": "Summer Tutoring Volunteers Needed",
+      "date": "2026-09-02T03:33:03.968Z",
+      "sections": [
+        {
+          "id": "ps1",
+          "image": "",
+          "text": "We are looking for math and science tutors for summer program. 2 hours/week commitment."
+        }
+      ]
+    },
+    {
+      "id": "post2",
+      "branchId": "branch2",
+      "title": "Beach Cleanup - Volunteers Wanted",
+      "date": "2026-09-03T03:33:03.969Z",
+      "sections": [
+        {
+          "id": "ps2",
+          "image": "",
+          "text": "Join our beach cleanup this Saturday 9am. Community service hours provided!"
+        }
+      ]
+    }
+  ]
+}
