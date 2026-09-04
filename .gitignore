@@ -26,5 +26,11 @@ frontend/uploads/
 .DS_Store
 Thumbs.db
 
+# deploy
+deploy.zip
+backend/deploy.zip
+deploy_staging/
+create-zip.ps1
+
 # logs
 npm-debug.log*

@@ -303,9 +303,17 @@ app.get('/api/health', async (req,res)=> {
   }
 });
 
-// serve frontend dist if built (fixes Cannot GET / on Hostinger Shared/Cloud)
-const frontendDist = path.join(__dirname, '../frontend/dist');
-if (fs.existsSync(frontendDist)) {
+// serve frontend dist if built (fixes Cannot GET / on Hostinger)
+// supports both dev layout (../frontend/dist) and deploy.zip layout (./dist)
+const frontendDistCandidates = [
+  path.join(__dirname, '../frontend/dist'),
+  path.join(__dirname, 'dist')
+];
+let frontendDist = null;
+for (const p of frontendDistCandidates) {
+  if (fs.existsSync(p)) { frontendDist = p; break; }
+}
+if (frontendDist) {
   app.use(express.static(frontendDist));
   // SPA fallback: serve index.html for non-api routes
   app.get('*', (req, res, next) => {
@@ -313,7 +321,7 @@ if (fs.existsSync(frontendDist)) {
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 } else {
-  app.get('/', (req, res) => res.json({ message: 'API running. Frontend not built - run: cd frontend && npm install && npm run build' }));
+  app.get('/', (req, res) => res.json({ message: 'API running. Frontend not built - run: cd frontend && npm install && npm run build or npm run deploy' }));
 }
 
 async function start() {

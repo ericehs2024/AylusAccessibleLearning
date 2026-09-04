@@ -4,7 +4,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "deploy": "node deploy.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -17,6 +18,7 @@
     "nodemailer": "^6.9.13"
   },
   "devDependencies": {
+    "archiver": "^8.0.0",
     "nodemon": "^3.0.1"
   }
 }
