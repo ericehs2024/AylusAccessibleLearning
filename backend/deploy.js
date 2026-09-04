@@ -23,28 +23,26 @@ async function main() {
   if (fs.existsSync(distDest)) fs.rmSync(distDest, { recursive: true, force: true });
   fs.cpSync(distSrc, distDest, { recursive: true });
 
-  console.log('==> Creating deploy.zip in backend/ (including .env)...');
+  console.log('==> Creating deploy.zip in backend/ (including .env, excluding .env.local)...');
 
   // prepare staging to control exactly what goes into zip
   if (fs.existsSync(staging)) fs.rmSync(staging, { recursive: true, force: true });
   fs.mkdirSync(staging, { recursive: true });
   fs.mkdirSync(path.join(staging, 'dist'), { recursive: true });
 
-  // copy backend files (exclude node_modules, uploads, deploy.zip)
+  // copy backend files (exclude node_modules, uploads, deploy.zip, .env.local)
   const backendFiles = fs.readdirSync(backendDir);
   for (const name of backendFiles) {
-    if (['node_modules', 'uploads', 'deploy.zip', 'dist', '.git'].includes(name)) continue;
+    if (['node_modules', 'uploads', 'deploy.zip', 'dist', '.git', '.env.local'].includes(name)) continue;
     const src = path.join(backendDir, name);
     const dest = path.join(staging, name);
     const stat = fs.statSync(src);
     if (stat.isDirectory()) fs.cpSync(src, dest, { recursive: true });
     else fs.copyFileSync(src, dest);
   }
-  // ensure .env* are included even if hidden (readdir may miss dotfiles on some fs, so explicitly copy)
-  for (const envName of ['.env', '.env.local']) {
-    const p = path.join(backendDir, envName);
-    if (fs.existsSync(p)) fs.copyFileSync(p, path.join(staging, envName));
-  }
+  // include .env (production) only - .env.local is local dev and must not be deployed
+  const envPath = path.join(backendDir, '.env');
+  if (fs.existsSync(envPath)) fs.copyFileSync(envPath, path.join(staging, '.env'));
   // copy dist
   fs.cpSync(distDest, path.join(staging, 'dist'), { recursive: true });
 
@@ -67,7 +65,7 @@ async function main() {
   }
   const sizeMb = (fs.statSync(zipPath).size / 1024 / 1024).toFixed(2);
   console.log(`Done: backend/deploy.zip (${sizeMb} MB)`);
-  console.log('Contents: backend + .env* + dist/ (frontend build)');
+  console.log('Contents: backend + .env + dist/ (frontend build) - .env.local excluded');
   console.log('Upload backend/deploy.zip to Hostinger File Manager and Extract to your Node.js app root');
 }
 
