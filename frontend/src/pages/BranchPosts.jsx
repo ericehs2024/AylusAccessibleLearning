@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import api from '../api'
-import SectionView from '../components/SectionView'
+import WirePostCard from '../components/WirePostCard'
 import { useAuth } from '../context/AuthContext'
 
 export default function BranchPosts(){
@@ -44,15 +44,8 @@ export default function BranchPosts(){
         {isOwner && <Link to={`/branch/${id}/admin/posts`} className="btn btn-small">Manage Posts</Link>}
       </div>
 
-      {posts.length===0 ? <div className="card">No posts yet for this branch.</div> : posts.map(p=>(
-        <div key={p.id} className="card post-card">
-          <div className="post-meta">
-            <span>{new Date(p.date).toLocaleString()}</span>
-            <span className="badge">{branch?.name || p.branchId}</span>
-          </div>
-          <h3 style={{marginBottom:10}}>{p.title}</h3>
-          <SectionView sections={p.sections} />
-        </div>
+      {posts.length===0 ? <div className="wire-card" style={{padding:24, textAlign:'center'}}>No posts yet for this branch.</div> : posts.map(p=>(
+        <WirePostCard key={p.id} post={p} branchName={branch?.name || p.branchId} />
       ))}
     </div>
   )

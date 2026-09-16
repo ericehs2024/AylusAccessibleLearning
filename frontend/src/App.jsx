@@ -1,19 +1,27 @@
 import React from 'react'
-import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
 import OrgHome from './pages/OrgHome'
+import Upcoming from './pages/Upcoming'
+import PastEvents from './pages/PastEvents'
+import Resources from './pages/Resources'
+import MyBranch from './pages/MyBranch'
 import Branches from './pages/Branches'
 import BranchHome from './pages/BranchHome'
 import BranchPosts from './pages/BranchPosts'
+import PostDetail from './pages/PostDetail'
 import Login from './pages/Login'
 import AdminHomeEditor from './pages/AdminHomeEditor'
 import AdminPostsEditor from './pages/AdminPostsEditor'
 import ChangePassword from './pages/ChangePassword'
+import { useAuth } from './context/AuthContext'
 
 function SiteHeader(){
   return (
-    <div className="site-header">
-      <a href="https://aylus.org" target="_blank" rel="noreferrer">
-        <img src="https://aylus.org/wp-content/uploads/2015/08/aylus_title_red_500x130.jpg" alt="Alliance of Youth Leaders" />
+    <div className="wire-site-header">
+      <div className="wire-title">AYLUS ACCESSIBLE LEARNING</div>
+      {/* Keep logo subtle - wireframe shows title only, logo as secondary */}
+      <a href="https://aylus.org" target="_blank" rel="noreferrer" style={{display:'block', marginTop:6, opacity:0.9}}>
+        <img src="https://aylus.org/wp-content/uploads/2015/08/aylus_title_red_500x130.jpg" alt="Alliance of Youth Leaders" style={{maxWidth:260}} />
       </a>
       <div className="site-tagline">Leadership &nbsp;·&nbsp; Integrity &nbsp;·&nbsp; Innovation</div>
     </div>
@@ -22,49 +30,57 @@ function SiteHeader(){
 
 function Navbar(){
   const loc = useLocation()
-  const isActive = (p) => loc.pathname === p
+  const nav = useNavigate()
+  const { user } = useAuth()
+  const isActiveStrict = (p) => loc.pathname === p || loc.pathname.startsWith(p + '/')
+  const isMyBranchActive = loc.pathname === '/my-branch' || loc.pathname.startsWith('/branch/')
+  const isAllBranchesActive = loc.pathname === '/branches' || loc.pathname.startsWith('/branches/')
+
+  const handleMyBranch = (e) => {
+    e.preventDefault()
+    if(user && user.branchId){
+      nav(`/branch/${user.branchId}`)
+    } else {
+      nav('/my-branch')
+    }
+  }
+
   return (
-    <nav className="navbar">
-      <div className="navbar-inner" style={{justifyContent:'flex-start'}}>
-        <div className="nav-links">
-          <Link to="/" className={isActive('/') ? 'active' : ''}>Home</Link>
-          <Link to="/branches" className={isActive('/branches') ? 'active' : ''}>Branches</Link>
-        </div>
+    <nav className="wire-navbar">
+      <div className="wire-nav-inner">
+        <Link to="/" className={`wire-nav-item ${loc.pathname==='/' ? 'active' : ''}`}>HOME</Link>
+        <Link to="/upcoming" className={`wire-nav-item ${isActiveStrict('/upcoming') ? 'active' : ''}`}>Upcoming</Link>
+        <Link to="/past" className={`wire-nav-item ${isActiveStrict('/past') ? 'active' : ''}`}>Past events</Link>
+        <a href="/my-branch" onClick={handleMyBranch} className={`wire-nav-item ${isMyBranchActive ? 'active' : ''}`}>My branch</a>
+        <Link to="/branches" className={`wire-nav-item ${isAllBranchesActive ? 'active' : ''}`}>All branches</Link>
+        <Link to="/resources" className={`wire-nav-item ${isActiveStrict('/resources') ? 'active' : ''}`}>Resources</Link>
       </div>
     </nav>
   )
 }
 
 function HeroHeader(){
-  const loc = useLocation()
-  const onHome = loc.pathname === '/'
-  const onBranches = loc.pathname === '/branches'
-  return (
-    <div className="hero">
-      <p>Empowering youth through tutoring, volunteering, and community service — across all branches.</p>
-      <p style={{marginTop:16, display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap'}}>
-        <Link to="/" className={`btn btn-small ${onHome ? '' : 'btn-outline'}`} aria-current={onHome ? 'page' : undefined}>Home</Link>
-        <Link to="/branches" className={`btn btn-small ${onBranches ? '' : 'btn-outline'}`} aria-current={onBranches ? 'page' : undefined}>Branches</Link>
-      </p>
-      <div className="hero-stats">
-        <div className="hero-stat"><strong>197</strong><span>Branches Nationwide</span></div>
-        <div className="hero-stat"><strong>11</strong><span>Years of Impact</span></div>
-        <div className="hero-stat"><strong>100%</strong><span>Student-Run</span></div>
-      </div>
-    </div>
-  )
+  // Wireframe: no large hero — minimal accessible tagline only, hidden to stay faithful
+  return null
 }
 
 export default function App(){
-  const loc = useLocation()
-  const isHeroPage = loc.pathname === '/' || loc.pathname === '/branches'
   return (
     <>
       <SiteHeader/>
-      {isHeroPage && <HeroHeader/>}
+      <Navbar/>
       <Routes>
         <Route path="/" element={<OrgHome/>} />
+        <Route path="/upcoming" element={<Upcoming/>} />
+        <Route path="/past" element={<PastEvents/>} />
+        <Route path="/my-branch" element={<MyBranch/>} />
+        <Route path="/resources" element={<Resources/>} />
         <Route path="/branches" element={<Branches/>} />
+        {/* canonical wireframe URL: /branches/:branchId/posts/:postId */}
+        <Route path="/branches/:branchId/posts/:postId" element={<PostDetail/>} />
+        {/* legacy/supporting routes */}
+        <Route path="/post/:postId" element={<PostDetail/>} />
+        <Route path="/branch/:branchId/post/:postId" element={<PostDetail/>} />
         <Route path="/login" element={<Login/>} />
         <Route path="/change-password" element={<ChangePassword/>} />
         <Route path="/branch/:id" element={<BranchHome/>} />

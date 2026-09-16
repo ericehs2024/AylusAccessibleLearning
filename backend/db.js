@@ -88,11 +88,33 @@ async function initDb() {
       title VARCHAR(500) NOT NULL,
       date DATETIME NOT NULL,
       sections JSON,
+      requiredAges VARCHAR(255),
+      location VARCHAR(500),
+      signUpLink TEXT,
+      extraDescription TEXT,
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_branch_date (branchId, date),
       INDEX idx_date (date),
       CONSTRAINT fk_branch FOREIGN KEY (branchId) REFERENCES branches(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+  // add wireframe columns if upgrading from older schema
+  try { await p.query(`ALTER TABLE posts ADD COLUMN requiredAges VARCHAR(255)`); } catch (e) { /* already exists */ }
+  try { await p.query(`ALTER TABLE posts ADD COLUMN location VARCHAR(500)`); } catch (e) { /* already exists */ }
+  try { await p.query(`ALTER TABLE posts ADD COLUMN signUpLink TEXT`); } catch (e) { /* already exists */ }
+  try { await p.query(`ALTER TABLE posts ADD COLUMN extraDescription TEXT`); } catch (e) { /* already exists */ }
+
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS comments (
+      id VARCHAR(64) PRIMARY KEY,
+      postId VARCHAR(64) NOT NULL,
+      authorName VARCHAR(255) NOT NULL,
+      text TEXT NOT NULL,
+      createdAt DATETIME NOT NULL,
+      INDEX idx_post (postId),
+      INDEX idx_created (createdAt),
+      CONSTRAINT fk_comment_post FOREIGN KEY (postId) REFERENCES posts(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
@@ -145,21 +167,40 @@ async function seed() {
       branchId: 'branch1',
       title: 'Summer Tutoring Volunteers Needed',
       date: new Date(Date.now() - 86400000 * 2),
-      sections: [{ id: 'ps1', image: '', text: 'We are looking for math and science tutors for summer program. 2 hours/week commitment.' }]
+      sections: [{ id: 'ps1', image: '', text: 'We are looking for math and science tutors for summer program. 2 hours/week commitment.' }],
+      requiredAges: '14-18',
+      location: 'Zoom',
+      signUpLink: 'https://forms.gle/example1',
+      extraDescription: 'Help middle school students with math and reading. Training provided. Flexible timing.'
     },
     {
       id: 'post2',
       branchId: 'branch2',
       title: 'Beach Cleanup - Volunteers Wanted',
       date: new Date(Date.now() - 86400000),
-      sections: [{ id: 'ps2', image: '', text: 'Join our beach cleanup this Saturday 9am. Community service hours provided!' }]
+      sections: [{ id: 'ps2', image: '', text: 'Join our beach cleanup this Saturday 9am. Community service hours provided!' }],
+      requiredAges: 'All ages',
+      location: 'Santa Monica Beach',
+      signUpLink: '',
+      extraDescription: 'Past beach cleanup - thank you to all volunteers who joined!'
+    },
+    {
+      id: 'post3',
+      branchId: 'branch1',
+      title: 'Upcoming: STEM Workshop for Kids',
+      date: new Date(Date.now() + 86400000 * 7),
+      sections: [{ id: 'ps3', image: '', text: 'Hands-on STEM activities for elementary students. Volunteers guide small groups through experiments.' }],
+      requiredAges: '16+',
+      location: 'Zoom + In-person (Library)',
+      signUpLink: 'https://forms.gle/example3',
+      extraDescription: 'Upcoming interactive workshop covering robotics and coding basics. Volunteers needed as mentors.'
     }
   ];
 
   for (const post of posts) {
     await p.query(
-      'INSERT INTO posts (id, branchId, title, date, sections) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE title=VALUES(title)',
-      [post.id, post.branchId, post.title, post.date, JSON.stringify(post.sections)]
+      'INSERT INTO posts (id, branchId, title, date, sections, requiredAges, location, signUpLink, extraDescription) VALUES (?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title=VALUES(title), requiredAges=VALUES(requiredAges), location=VALUES(location), signUpLink=VALUES(signUpLink), extraDescription=VALUES(extraDescription)',
+      [post.id, post.branchId, post.title, post.date, JSON.stringify(post.sections), post.requiredAges, post.location, post.signUpLink, post.extraDescription]
     );
   }
 }
@@ -218,7 +259,11 @@ async function getBranchPosts(branchId, limit = 100, offset = 0) {
     branchId: r.branchId,
     title: r.title,
     date: r.date,
-    sections: parseSections(r.sections)
+    sections: parseSections(r.sections),
+    requiredAges: r.requiredAges || '',
+    location: r.location || '',
+    signUpLink: r.signUpLink || '',
+    extraDescription: r.extraDescription || ''
   }));
 }
 
@@ -237,21 +282,30 @@ async function getAllPosts(limit = 100, offset = 0) {
     branchName: r.branchName || r.branchId,
     title: r.title,
     date: r.date,
-    sections: parseSections(r.sections)
+    sections: parseSections(r.sections),
+    requiredAges: r.requiredAges || '',
+    location: r.location || '',
+    signUpLink: r.signUpLink || '',
+    extraDescription: r.extraDescription || ''
   }));
 }
 
-async function createPost({ id, branchId, title, sections }) {
-  const date = new Date();
-  await getPool().query('INSERT INTO posts (id, branchId, title, date, sections) VALUES (?,?,?,?,?)', [id, branchId, title, date, JSON.stringify(sections)]);
-  return { id, branchId, title, date: date.toISOString(), sections };
+async function createPost({ id, branchId, title, sections, requiredAges, location, signUpLink, extraDescription, date }) {
+  const postDate = date ? new Date(date) : new Date();
+  await getPool().query('INSERT INTO posts (id, branchId, title, date, sections, requiredAges, location, signUpLink, extraDescription) VALUES (?,?,?,?,?,?,?,?,?)', [id, branchId, title, postDate, JSON.stringify(sections || []), requiredAges || null, location || null, signUpLink || null, extraDescription || null]);
+  return { id, branchId, title, date: postDate.toISOString(), sections: sections || [], requiredAges: requiredAges || '', location: location || '', signUpLink: signUpLink || '', extraDescription: extraDescription || '' };
 }
 
-async function updatePost(branchId, postId, { title, sections }) {
+async function updatePost(branchId, postId, { title, sections, requiredAges, location, signUpLink, extraDescription, date }) {
   const fields = [];
   const vals = [];
   if (title !== undefined) { fields.push('title=?'); vals.push(title); }
   if (sections !== undefined) { fields.push('sections=?'); vals.push(JSON.stringify(sections)); }
+  if (requiredAges !== undefined) { fields.push('requiredAges=?'); vals.push(requiredAges); }
+  if (location !== undefined) { fields.push('location=?'); vals.push(location); }
+  if (signUpLink !== undefined) { fields.push('signUpLink=?'); vals.push(signUpLink); }
+  if (extraDescription !== undefined) { fields.push('extraDescription=?'); vals.push(extraDescription); }
+  if (date !== undefined) { fields.push('date=?'); vals.push(new Date(date)); }
   if (fields.length === 0) return null;
   vals.push(postId, branchId);
   const [res] = await getPool().query(`UPDATE posts SET ${fields.join(', ')} WHERE id=? AND branchId=?`, vals);
@@ -259,7 +313,7 @@ async function updatePost(branchId, postId, { title, sections }) {
   const [rows] = await getPool().query('SELECT * FROM posts WHERE id=? AND branchId=?', [postId, branchId]);
   if (rows.length === 0) return null;
   const r = rows[0];
-  return { id: r.id, branchId: r.branchId, title: r.title, date: r.date, sections: parseSections(r.sections) };
+  return { id: r.id, branchId: r.branchId, title: r.title, date: r.date, sections: parseSections(r.sections), requiredAges: r.requiredAges || '', location: r.location || '', signUpLink: r.signUpLink || '', extraDescription: r.extraDescription || '' };
 }
 
 async function deletePost(branchId, postId) {
@@ -307,6 +361,73 @@ async function consumeReset(branchId, code) {
   return reset;
 }
 
+async function getPostById(postId) {
+  // support both raw and prefixed ids: e.g. post-178... vs 178...
+  const candidates = [postId]
+  if (postId.startsWith('post-')) candidates.push(postId.slice(5))
+  else candidates.push('post-' + postId)
+  // try each candidate
+  for (const cand of candidates) {
+    const [rows] = await getPool().query(
+      `SELECT p.*, b.name as branchName FROM posts p LEFT JOIN branches b ON b.id = p.branchId WHERE p.id=? LIMIT 1`,
+      [cand]
+    );
+    if (rows.length > 0) {
+      const r = rows[0];
+      return {
+        id: r.id,
+        branchId: r.branchId,
+        branchName: r.branchName || r.branchId,
+        title: r.title,
+        date: r.date,
+        sections: parseSections(r.sections),
+        requiredAges: r.requiredAges || '',
+        location: r.location || '',
+        signUpLink: r.signUpLink || '',
+        extraDescription: r.extraDescription || ''
+      };
+    }
+  }
+  return null;
+}
+
+async function getPostComments(postId) {
+  // try both prefixed and raw ids for compatibility
+  const candidates = [postId]
+  if (postId.startsWith('post-')) candidates.push(postId.slice(5))
+  else candidates.push('post-' + postId)
+  const placeholders = candidates.map(()=>'?').join(',')
+  const [rows] = await getPool().query(
+    `SELECT * FROM comments WHERE postId IN (${placeholders}) ORDER BY createdAt ASC`,
+    candidates
+  );
+  return rows.map(r => ({
+    id: r.id,
+    postId: r.postId,
+    authorName: r.authorName,
+    text: r.text,
+    createdAt: r.createdAt
+  }));
+}
+
+async function createComment({ id, postId, authorName, text }) {
+  const createdAt = new Date();
+  await getPool().query(
+    'INSERT INTO comments (id, postId, authorName, text, createdAt) VALUES (?,?,?,?,?)',
+    [id, postId, authorName, text, createdAt]
+  );
+  return { id, postId, authorName, text, createdAt: createdAt.toISOString() };
+}
+
+async function deleteComment(postId, commentId) {
+  const candidates = [postId]
+  if (postId.startsWith('post-')) candidates.push(postId.slice(5))
+  else candidates.push('post-' + postId)
+  const placeholders = candidates.map(()=>'?').join(',')
+  const [res] = await getPool().query(`DELETE FROM comments WHERE id=? AND postId IN (${placeholders})`, [commentId, ...candidates]);
+  return res.affectedRows > 0;
+}
+
 async function countPosts() {
   const [rows] = await getPool().query('SELECT COUNT(*) as c FROM posts');
   return rows[0].c;
@@ -322,6 +443,10 @@ module.exports = {
   updateBranchHome,
   getBranchPosts,
   getAllPosts,
+  getPostById,
+  getPostComments,
+  createComment,
+  deleteComment,
   createPost,
   updatePost,
   deletePost,

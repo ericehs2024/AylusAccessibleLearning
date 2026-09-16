@@ -243,16 +243,85 @@ app.get('/api/posts', async (req, res) => {
   }
 });
 
-// POST create post
+// GET single post by id (for post detail page)
+app.get('/api/posts/:postId', async (req, res) => {
+  try {
+    const post = await db.getPostById(req.params.postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    res.json(post);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// GET comments for a post
+app.get('/api/posts/:postId/comments', async (req, res) => {
+  try {
+    const post = await db.getPostById(req.params.postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const comments = await db.getPostComments(req.params.postId);
+    res.json(comments);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// POST comment to a post (open to all, no auth required)
+app.post('/api/posts/:postId/comments', async (req, res) => {
+  try {
+    const { authorName, text } = req.body;
+    if (!authorName || !authorName.trim()) return res.status(400).json({ error: 'Name required' });
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Comment text required' });
+    if (text.length > 2000) return res.status(400).json({ error: 'Comment too long (max 2000 chars)' });
+    const post = await db.getPostById(req.params.postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const comment = await db.createComment({
+      id: 'cmt-' + Date.now() + '-' + Math.round(Math.random()*10000),
+      postId: post.id, // use canonical id (handles post- prefix stripping for URL /branches/.../posts/178... )
+      authorName: authorName.trim().slice(0,80),
+      text: text.trim()
+    });
+    res.status(201).json(comment);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// DELETE comment (branch owner can delete)
+app.delete('/api/posts/:postId/comments/:commentId', auth, async (req, res) => {
+  try {
+    const post = await db.getPostById(req.params.postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    if (req.user.branchId !== post.branchId && req.user.role !== 'super') {
+      return res.status(403).json({ error: 'Only branch owner can delete comments' });
+    }
+    const ok = await db.deleteComment(post.id, req.params.commentId);
+    if (!ok) return res.status(404).json({ error: 'Comment not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// POST create post (wireframe fields: requiredAges, location, signUpLink, extraDescription, date)
 app.post('/api/branches/:id/posts', auth, requireBranchOwner, async (req, res) => {
   try {
-    const { title, sections } = req.body;
+    const { title, sections, requiredAges, location, signUpLink, extraDescription, date } = req.body;
     if (!title || !Array.isArray(sections)) return res.status(400).json({ error: 'title and sections required' });
     const newPost = await db.createPost({
       id: 'post-' + Date.now() + '-' + Math.round(Math.random()*1000),
       branchId: req.params.id,
       title,
-      sections
+      sections,
+      requiredAges,
+      location,
+      signUpLink,
+      extraDescription,
+      date
     });
     res.status(201).json(newPost);
   } catch (e) {
@@ -264,8 +333,8 @@ app.post('/api/branches/:id/posts', auth, requireBranchOwner, async (req, res) =
 // PUT update post
 app.put('/api/branches/:id/posts/:postId', auth, requireBranchOwner, async (req, res) => {
   try {
-    const { title, sections } = req.body;
-    const updated = await db.updatePost(req.params.id, req.params.postId, { title, sections });
+    const { title, sections, requiredAges, location, signUpLink, extraDescription, date } = req.body;
+    const updated = await db.updatePost(req.params.id, req.params.postId, { title, sections, requiredAges, location, signUpLink, extraDescription, date });
     if (!updated) return res.status(404).json({ error: 'Post not found' });
     res.json(updated);
   } catch (e) {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import api from '../api'
-import SectionView from '../components/SectionView'
+import WirePostCard from '../components/WirePostCard'
 
 export default function OrgHome(){
   const [posts, setPosts] = useState([])
@@ -26,24 +26,16 @@ export default function OrgHome(){
 
   return (
     <>
-      <div className="container" style={{padding:'32px 20px'}}>
-        <h2 style={{marginBottom:6}}>Posts from All Branches</h2>
-        <p style={{color:'#5f6368', marginBottom:16, fontSize:14}}>Every post published by a branch admin automatically appears here.</p>
-
-        <div style={{display:'flex', gap:8, marginBottom:16, maxWidth:520, alignItems:'center'}}>
-          <input className="input" placeholder="Search posts by keyword in title or paragraphs..." value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter' && doSearch()} style={{flex:1, marginTop:0}} />
-          <button className="btn btn-small" onClick={doSearch}>Search</button>
-          {(query || applied) && <button className="btn btn-outline btn-small" onClick={clear}>Clear</button>}
+      <div className="container" style={{padding:'20px 20px 32px'}}>
+        {/* Wireframe HOME: direct post feed, search is secondary */}
+        <div style={{display:'flex', gap:8, marginBottom:14, maxWidth:520, alignItems:'center'}}>
+          <input className="input" placeholder="Search posts (title or text)..." value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter' && doSearch()} style={{flex:1, marginTop:0, borderWidth:2, borderColor:'#000'}} />
+          <button className="wire-nav-item" onClick={doSearch} style={{cursor:'pointer'}}>Search</button>
+          {(query || applied) && <button className="wire-nav-item" onClick={clear} style={{cursor:'pointer'}}>Clear</button>}
         </div>
-        {filtered.length===0 ? <div className="card">{posts.length===0 ? 'No posts yet.' : `No posts match "${applied}"`}</div> : filtered.map(p=>(
-          <div key={p.id} className="card post-card">
-            <div className="post-meta">
-              <span className="badge">{p.branchName}</span>
-              <span>{new Date(p.date).toLocaleString()}</span>
-            </div>
-            <h3 style={{marginBottom:8}}>{p.title}</h3>
-            <SectionView sections={p.sections} />
-          </div>
+        {applied && <p style={{fontSize:12, color:'#555', marginBottom:10}}>Showing {filtered.length} result(s) for “{applied}” — every post is shown as post 1 / post 2 boxes per wireframe.</p>}
+        {filtered.length===0 ? <div className="wire-card" style={{textAlign:'center', padding:24}}>{posts.length===0 ? 'No posts yet. Branch admins can create posts with date/ages/location/sign-up/extra description.' : `No posts match "${applied}"`}</div> : filtered.map(p=>(
+          <WirePostCard key={p.id} post={p} branchName={p.branchName} />
         ))}
       </div>
     </>
