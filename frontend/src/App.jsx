@@ -12,17 +12,78 @@ import PostDetail from './pages/PostDetail'
 import Login from './pages/Login'
 import AdminHomeEditor from './pages/AdminHomeEditor'
 import AdminPostsEditor from './pages/AdminPostsEditor'
+import AdminResourcesEditor from './pages/AdminResourcesEditor'
 import ChangePassword from './pages/ChangePassword'
+import Admin from './pages/Admin'
 import { useAuth } from './context/AuthContext'
+import { useTheme } from './context/ThemeContext'
+import VoronoiBackground from './components/VoronoiBackground'
+
+function SleekSwitch({ checked, onToggle }){
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      aria-label={checked ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={checked ? 'Switch to light mode' : 'Switch to dark mode'}
+      onClick={onToggle}
+      onKeyDown={e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); onToggle() } }}
+      style={{
+        position:'absolute',
+        left:14,
+        top:14,
+        zIndex:5,
+        width:56,
+        height:30,
+        borderRadius:999,
+        border: `1.5px solid ${checked ? '#3a3a3a' : '#111'}`,
+        background: checked ? '#1a1a1a' : '#fff',
+        boxShadow: checked ? '0 2px 10px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)' : '0 2px 10px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.9)',
+        display:'flex',
+        alignItems:'center',
+        padding:3,
+        cursor:'pointer',
+        transition:'background .25s, border-color .25s, box-shadow .25s',
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width:24,
+          height:24,
+          borderRadius:999,
+          background: checked ? '#e6e6e6' : '#111',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.25), 0 1px 1px rgba(0,0,0,0.2)',
+          transform: checked ? 'translateX(26px)' : 'translateX(0)',
+          transition:'transform .28s cubic-bezier(.2,.8,.2,1), background .25s',
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'center',
+          color: checked ? '#111' : '#f5c518',
+        }}
+      >
+        {/* SVG icons */}
+        {checked ? (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="none" />
+          </svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="4" fill="currentColor" stroke="none" />
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </svg>
+        )}
+      </span>
+    </button>
+  )
+}
 
 function SiteHeader(){
+  const { toggle, isDark } = useTheme()
   return (
-    <div className="wire-site-header">
+    <div className="wire-site-header" style={{position:'relative'}}>
+      <SleekSwitch checked={isDark} onToggle={toggle} />
       <div className="wire-title">AYLUS ACCESSIBLE LEARNING</div>
-      {/* Keep logo subtle - wireframe shows title only, logo as secondary */}
-      <a href="https://aylus.org" target="_blank" rel="noreferrer" style={{display:'block', marginTop:6, opacity:0.9}}>
-        <img src="https://aylus.org/wp-content/uploads/2015/08/aylus_title_red_500x130.jpg" alt="Alliance of Youth Leaders" style={{maxWidth:260}} />
-      </a>
       <div className="site-tagline">Leadership &nbsp;·&nbsp; Integrity &nbsp;·&nbsp; Innovation</div>
     </div>
   )
@@ -67,6 +128,7 @@ function HeroHeader(){
 export default function App(){
   return (
     <>
+      <VoronoiBackground />
       <SiteHeader/>
       <Navbar/>
       <Routes>
@@ -83,12 +145,14 @@ export default function App(){
         <Route path="/branch/:branchId/post/:postId" element={<PostDetail/>} />
         <Route path="/login" element={<Login/>} />
         <Route path="/change-password" element={<ChangePassword/>} />
+        <Route path="/admin" element={<Admin/>} />
         <Route path="/branch/:id" element={<BranchHome/>} />
         <Route path="/branch/:id/posts" element={<BranchPosts/>} />
         <Route path="/branch/:id/admin/home" element={<AdminHomeEditor/>} />
         <Route path="/branch/:id/admin/posts" element={<AdminPostsEditor/>} />
+        <Route path="/branch/:id/admin/resources" element={<AdminResourcesEditor/>} />
       </Routes>
-      <footer style={{textAlign:'center', padding:'32px', color:'#5f6368', fontSize:13}}>
+      <footer style={{textAlign:'center', padding:'32px', fontSize:13}}>
         © {new Date().getFullYear()} Aylus Accessible Learning • Non-profit Organization
       </footer>
     </>

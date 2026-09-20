@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
+import PasswordInput from '../components/PasswordInput'
 
 function validatePassword(pw) {
   if (!pw || pw.length < 8) return 'At least 8 characters'
@@ -129,7 +130,7 @@ export default function ChangePassword(){
       {step===3 && (
         <form onSubmit={resetPassword} className="card">
           <label className="label">New Password</label>
-          <input className="input" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="New password" required />
+          <PasswordInput value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="New password" required />
           <div style={{background:'#fef7e0', border:'1px solid #fbbc04', borderRadius:8, padding:'10px 12px', marginTop:8, fontSize:12, lineHeight:1.5}}>
             <b>Hint:</b> Minimum 8 characters, at least <b>2 digits</b> and <b>one uppercase letter</b>.<br/>
             Example: <code>Sunshine12</code> ✓ — <code>password</code> ✗ (no digits/uppercase)
@@ -140,7 +141,7 @@ export default function ChangePassword(){
             </div>
           </div>
           <label className="label" style={{marginTop:12, display:'block'}}>Confirm New Password</label>
-          <input className="input" type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter new password" required />
+          <PasswordInput value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter new password" required />
           <button className="btn" style={{marginTop:14, width:'100%'}} disabled={loading}>{loading ? 'Saving...' : 'Save New Password'}</button>
         </form>
       )}

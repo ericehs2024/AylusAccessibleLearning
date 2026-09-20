@@ -33,8 +33,9 @@ export default function MyBranch(){
             {branches.slice(0,12).map(b=>(
               <div key={b.id} className="wire-card" style={{padding:16}}>
                 <strong>{b.name}</strong>
-                <div style={{fontSize:12, color:'#777', margin:'4px 0 10px'}}>ID: {b.id}</div>
-                <Link to={`/branch/${b.id}`} className="btn btn-small">View Branch</Link>
+                <div style={{marginTop:10}}>
+                  <Link to={`/branch/${b.id}`} className="btn btn-small">View Branch</Link>
+                </div>
               </div>
             ))}
           </div>

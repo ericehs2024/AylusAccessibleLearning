@@ -33,8 +33,8 @@ export default function OrgHome(){
           <button className="wire-nav-item" onClick={doSearch} style={{cursor:'pointer'}}>Search</button>
           {(query || applied) && <button className="wire-nav-item" onClick={clear} style={{cursor:'pointer'}}>Clear</button>}
         </div>
-        {applied && <p style={{fontSize:12, color:'#555', marginBottom:10}}>Showing {filtered.length} result(s) for “{applied}” — every post is shown as post 1 / post 2 boxes per wireframe.</p>}
-        {filtered.length===0 ? <div className="wire-card" style={{textAlign:'center', padding:24}}>{posts.length===0 ? 'No posts yet. Branch admins can create posts with date/ages/location/sign-up/extra description.' : `No posts match "${applied}"`}</div> : filtered.map(p=>(
+        {applied && <p style={{fontSize:12, color:'#555', marginBottom:10}}>Showing {filtered.length} result(s) for “{applied}”.</p>}
+        {filtered.length===0 ? <div className="wire-card" style={{textAlign:'center', padding:24}}>{posts.length===0 ? 'No posts yet. Check back soon for new opportunities.' : `No posts match "${applied}"`}</div> : filtered.map(p=>(
           <WirePostCard key={p.id} post={p} branchName={p.branchName} />
         ))}
       </div>

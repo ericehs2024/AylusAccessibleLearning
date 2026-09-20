@@ -16,6 +16,8 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'aylus-dev-secret-please-change';
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'superadmin123';
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -34,6 +36,7 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage, limits: { fileSize: 5*1024*1024 } });
+const resourceUpload = multer({ storage, limits: { fileSize: 20*1024*1024 } });
 
 // --- auth middleware ---
 function auth(req, res, next) {
@@ -51,10 +54,24 @@ function auth(req, res, next) {
 
 function requireBranchOwner(req, res, next) {
   const { id } = req.params;
-  if (req.user.branchId !== id && req.user.role !== 'super') {
+  if (req.user.branchId !== id && req.user.role !== 'super' && req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Forbidden: not owner of this branch' });
   }
   next();
+}
+
+function adminAuth(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header) return res.status(401).json({ error: 'Missing token' });
+  const token = header.split(' ')[1];
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.role !== 'admin') return res.status(403).json({ error: 'Forbidden: admin only' });
+    req.admin = payload;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
 }
 
 // --- routes ---
@@ -135,11 +152,15 @@ async function sendVerificationEmail(to, code) {
   return { devMode: false };
 }
 
-// POST login
+// POST login (branch) - rejects admin username to prevent conflict
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+    // prevent admin username from being used as branch login
+    if (username.trim() === ADMIN_USERNAME) {
+      return res.status(401).json({ error: 'Invalid credentials. Admin accounts must use /admin login.' });
+    }
     const branch = await db.getBranchByUsername(username);
     if (!branch) return res.status(401).json({ error: 'Invalid credentials' });
     const ok = await bcrypt.compare(password, branch.passwordHash);
@@ -290,13 +311,13 @@ app.post('/api/posts/:postId/comments', async (req, res) => {
   }
 });
 
-// DELETE comment (branch owner can delete)
+// DELETE comment - ONLY the branch admin who owns the post's branch can delete
 app.delete('/api/posts/:postId/comments/:commentId', auth, async (req, res) => {
   try {
     const post = await db.getPostById(req.params.postId);
     if (!post) return res.status(404).json({ error: 'Post not found' });
-    if (req.user.branchId !== post.branchId && req.user.role !== 'super') {
-      return res.status(403).json({ error: 'Only branch owner can delete comments' });
+    if (!req.user.branchId || req.user.branchId !== post.branchId) {
+      return res.status(403).json({ error: 'Only the branch admin for this post can delete comments' });
     }
     const ok = await db.deleteComment(post.id, req.params.commentId);
     if (!ok) return res.status(404).json({ error: 'Comment not found' });
@@ -360,6 +381,181 @@ app.post('/api/upload', auth, upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
   const url = `/uploads/${req.file.filename}`;
   res.json({ url });
+});
+
+// resource file upload (powerpoints, pdfs, etc — up to 20MB)
+app.post('/api/upload/resource', auth, resourceUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url, fileName: req.file.originalname, fileType: req.file.mimetype, size: req.file.size });
+});
+
+// --- resources (branch uploads, searchable with labels) ---
+const RESOURCE_CATEGORIES = ['powerpoints', 'lesson plans', 'teaching tips', 'worksheets', 'videos', 'other'];
+
+app.get('/api/resources', async (req, res) => {
+  try {
+    const { q, category, branchId, limit, offset } = req.query;
+    const list = await db.getAllResources({ q, category, branchId, limit: limit || 100, offset: offset || 0 });
+    res.json(list);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.get('/api/resources/:id', async (req, res) => {
+  try {
+    const r = await db.getResourceById(req.params.id);
+    if (!r) return res.status(404).json({ error: 'Resource not found' });
+    res.json(r);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.get('/api/branches/:id/resources', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || '100', 10), 100);
+    const offset = parseInt(req.query.offset || '0', 10);
+    const list = await db.getBranchResources(req.params.id, limit, offset);
+    res.json(list);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.post('/api/branches/:id/resources', auth, requireBranchOwner, async (req, res) => {
+  try {
+    const { title, category, description, fileUrl, fileName, fileType } = req.body;
+    if (!title || !title.trim()) return res.status(400).json({ error: 'Title required' });
+    if (category && !RESOURCE_CATEGORIES.includes(category.toLowerCase())) {
+      return res.status(400).json({ error: 'Invalid category. Allowed: ' + RESOURCE_CATEGORIES.join(', ') });
+    }
+    const r = await db.createResource({
+      id: 'res-' + Date.now() + '-' + Math.round(Math.random()*10000),
+      branchId: req.params.id,
+      title: title.trim(),
+      category: category || 'other',
+      description: description || '',
+      fileUrl: fileUrl || null,
+      fileName: fileName || null,
+      fileType: fileType || null,
+    });
+    res.status(201).json(r);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.put('/api/branches/:id/resources/:resourceId', auth, requireBranchOwner, async (req, res) => {
+  try {
+    const { title, category, description, fileUrl, fileName, fileType } = req.body;
+    if (category && !RESOURCE_CATEGORIES.includes(category.toLowerCase())) {
+      return res.status(400).json({ error: 'Invalid category' });
+    }
+    const updated = await db.updateResource(req.params.id, req.params.resourceId, {
+      title: title !== undefined ? title.trim() : undefined,
+      category,
+      description,
+      fileUrl,
+      fileName,
+      fileType,
+    });
+    if (!updated) return res.status(404).json({ error: 'Resource not found' });
+    res.json(updated);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.delete('/api/branches/:id/resources/:resourceId', auth, requireBranchOwner, async (req, res) => {
+  try {
+    const ok = await db.deleteResource(req.params.id, req.params.resourceId);
+    if (!ok) return res.status(404).json({ error: 'Resource not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// --- admin (username + password from .env) ---
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+    if (username.trim() !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+      return res.status(401).json({ error: 'Invalid admin credentials' });
+    }
+    const token = jwt.sign({ role: 'admin', username: ADMIN_USERNAME }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/admin/branches', adminAuth, async (req, res) => {
+  try {
+    const branches = await db.getBranches();
+    // return full list for admin panel (without passwordHash)
+    const detailed = await Promise.all(branches.map(b => db.getBranchById(b.id)));
+    const safe = detailed.filter(Boolean).map(b => ({ id: b.id, name: b.name, username: b.username, email: b.email }));
+    res.json(safe);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.post('/api/admin/branches', adminAuth, async (req, res) => {
+  try {
+    let { name, username, password, email } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Branch name required' });
+    if (!username || !username.trim()) return res.status(400).json({ error: 'Username required' });
+    if (!password) return res.status(400).json({ error: 'Password required' });
+    name = name.trim();
+    username = username.trim();
+    // prevent branch username from colliding with admin username
+    if (username === ADMIN_USERNAME) return res.status(409).json({ error: `Username "${ADMIN_USERNAME}" is reserved for admin and cannot be used for branches` });
+    // validate uniqueness
+    const existing = await db.getBranchByUsername(username);
+    if (existing) return res.status(409).json({ error: 'Username already exists' });
+    // optional: id collision check by same as username lowercased
+    let id = username.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-|-$/g, '') || ('branch-' + Date.now());
+    const existingById = await db.getBranchById(id);
+    if (existingById) id = id + '-' + Date.now().toString(36);
+    if (username.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters' });
+    if (password.length < 3) return res.status(400).json({ error: 'Password must be at least 3 characters' });
+    const hash = await bcrypt.hash(password, 10);
+    const branch = await db.createBranch({ id, name, username, passwordHash: hash, email: email || null });
+    const { passwordHash, ...safe } = branch;
+    // also return without hash
+    res.status(201).json({ id: branch.id, name: branch.name, username: branch.username, email: branch.email || '' });
+  } catch (e) {
+    console.error(e);
+    if (e.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Branch already exists (duplicate name/username)' });
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// super-admin can delete any post (branch check bypassed)
+app.delete('/api/admin/posts/:postId', adminAuth, async (req, res) => {
+  try {
+    const post = await db.getPostById(req.params.postId);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    const ok = await db.deletePost(post.branchId, post.id);
+    if (!ok) return res.status(404).json({ error: 'Post not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
 });
 
 // health (also checks DB)

@@ -78,11 +78,11 @@ export default function PostDetail(){
           <div className="wire-field"><span className="wire-label">DATE</span><span>{dateOnly}</span></div>
           <div className="wire-field"><span className="wire-label">AGE GROUP</span><span>{post.requiredAges || 'All ages'}</span></div>
         </div>
-        <div style={{fontSize:11, color:'#666', marginBottom:10}}>{dateFull}</div>
-        <div className="wire-field"><span className="wire-label">location (zoom, etc)</span><span>{post.location || 'TBD'}</span></div>
+        <div className="comment-time" style={{fontSize:11, marginBottom:10}}>{dateFull}</div>
+        <div className="wire-field"><span className="wire-label">Location</span><span>{post.location || 'TBD'}</span></div>
         <div className="wire-field">
-          <span className="wire-label">sign up form</span>
-          {post.signUpLink ? <a href={post.signUpLink} target="_blank" rel="noreferrer" className="wire-link">Sign up link</a> : <span style={{color:'#666', fontWeight:600}}>No link yet</span>}
+          <span className="wire-label">Sign-up</span>
+          {post.signUpLink ? <a href={post.signUpLink} target="_blank" rel="noreferrer" className="wire-link">Sign up</a> : <span className="comment-time" style={{fontWeight:600}}>No link yet</span>}
         </div>
         <div style={{borderTop:'3px solid #000', marginTop:14, paddingTop:14}}>
           <SectionView sections={post.sections} />
@@ -92,7 +92,7 @@ export default function PostDetail(){
 
       <section className="wire-card" style={{padding:'16px 18px'}}>
         <h3 style={{fontSize:16, marginBottom:4}}>Comments ({comments.length})</h3>
-        <p style={{fontSize:12, color:'#666', marginBottom:14}}>Leave a question or feedback for this post.</p>
+        <p className="comment-time" style={{fontSize:12, marginBottom:14}}>Leave a question or feedback for this post.</p>
 
         <form onSubmit={submitComment} style={{marginBottom:18, display:'grid', gap:10}}>
           <input className="input" placeholder="Your name" value={authorName} onChange={e=>setAuthorName(e.target.value)} maxLength={80} style={{marginTop:0}} />
@@ -102,15 +102,15 @@ export default function PostDetail(){
           </div>
         </form>
 
-        {comments.length===0 ? <div style={{padding:12, border:'2px dashed #000', textAlign:'center', fontSize:13, color:'#555'}}>No comments yet — be the first.</div> : (
+        {comments.length===0 ? <div className="comment-empty">No comments yet — be the first.</div> : (
           <div style={{display:'grid', gap:12}}>
             {comments.map(c=>(
-              <div key={c.id} style={{border:'2px solid #000', padding:'10px 12px', background:'white'}}>
+              <div key={c.id} className="comment-card">
                 <div style={{display:'flex', justifyContent:'space-between', gap:8, alignItems:'center'}}>
-                  <strong style={{fontSize:13}}>{c.authorName}</strong>
-                  <span style={{fontSize:11, color:'#666'}}>{new Date(c.createdAt).toLocaleString()}</span>
+                  <strong className="comment-author">{c.authorName}</strong>
+                  <span className="comment-time">{new Date(c.createdAt).toLocaleString()}</span>
                 </div>
-                <p style={{fontSize:13, whiteSpace:'pre-wrap', marginTop:6, lineHeight:1.5}}>{c.text}</p>
+                <p className="comment-text">{c.text}</p>
                 {isOwner && (
                   <button className="wire-more-btn" onClick={()=>deleteComment(c.id)} style={{marginTop:6, fontSize:11}}>Delete</button>
                 )}

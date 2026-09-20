@@ -17,10 +17,10 @@ export default function WirePostCard({ post, branchName }){
             <div className="wire-field"><span className="wire-label">DATE</span><span>{dateOnly}</span></div>
             <div className="wire-field"><span className="wire-label">AGE GROUP</span><span>{post.requiredAges ? post.requiredAges : 'All ages'}</span></div>
           </div>
-          <div className="wire-field"><span className="wire-label">location (zoom, etc)</span><span>{post.location ? post.location : 'TBD'}</span></div>
+          <div className="wire-field"><span className="wire-label">Location</span><span>{post.location ? post.location : 'TBD'}</span></div>
           <div className="wire-field">
-            <span className="wire-label">sign up form</span>
-            {post.signUpLink ? <a href={post.signUpLink} target="_blank" rel="noreferrer" className="wire-link" aria-label={`Sign up form for ${post.title}`}>Sign up link</a> : <span style={{color:'#666', fontWeight:600}}>No link yet</span>}
+            <span className="wire-label">Sign-up</span>
+            {post.signUpLink ? <a href={post.signUpLink} target="_blank" rel="noreferrer" className="wire-link" aria-label={`Sign up for ${post.title}`}>Sign up</a> : <span style={{color:'#666', fontWeight:600}}>No link yet</span>}
           </div>
         </div>
       </div>

@@ -40,8 +40,12 @@ export default function BranchPosts(){
         <div className="tabs" style={{margin:0}}>
           <Link to={`/branch/${id}`} className="tab">Home</Link>
           <Link to={`/branch/${id}/posts`} className="tab active">Posts</Link>
+          <Link to={`/resources?branch=${id}`} className="tab">Resources</Link>
         </div>
-        {isOwner && <Link to={`/branch/${id}/admin/posts`} className="btn btn-small">Manage Posts</Link>}
+        <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+          {isOwner && <Link to={`/branch/${id}/admin/resources`} className="btn btn-small btn-outline">Manage Resources</Link>}
+          {isOwner && <Link to={`/branch/${id}/admin/posts`} className="btn btn-small">Manage Posts</Link>}
+        </div>
       </div>
 
       {posts.length===0 ? <div className="wire-card" style={{padding:24, textAlign:'center'}}>No posts yet for this branch.</div> : posts.map(p=>(

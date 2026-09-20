@@ -118,6 +118,25 @@ async function initDb() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS resources (
+      id VARCHAR(64) PRIMARY KEY,
+      branchId VARCHAR(64) NOT NULL,
+      title VARCHAR(500) NOT NULL,
+      category VARCHAR(64) NOT NULL,
+      description TEXT,
+      fileUrl VARCHAR(500),
+      fileName VARCHAR(255),
+      fileType VARCHAR(100),
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_branch (branchId),
+      INDEX idx_category (category),
+      INDEX idx_created (createdAt),
+      CONSTRAINT fk_resource_branch FOREIGN KEY (branchId) REFERENCES branches(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
   // Seed if empty
   const [rows] = await p.query('SELECT COUNT(*) as c FROM branches');
   if (rows[0].c === 0) {
@@ -240,6 +259,14 @@ async function getBranchById(id) {
 async function getBranchByUsername(username) {
   const [rows] = await getPool().query('SELECT * FROM branches WHERE username=?', [username]);
   return rows[0] || null;
+}
+
+async function createBranch({ id, name, username, passwordHash, email, homeTitle, homeSections }) {
+  await getPool().query(
+    'INSERT INTO branches (id, name, username, passwordHash, email, homeTitle, homeSections) VALUES (?,?,?,?,?,?,?)',
+    [id, name, username, passwordHash, email || null, homeTitle || `Welcome to ${name}`, JSON.stringify(homeSections || [{ id: 's-' + Date.now(), image: '', text: `Welcome to ${name}!` }])]
+  );
+  return { id, name, username, passwordHash, email: email || '' };
 }
 
 async function updateBranchHome(id, title, sections) {
@@ -433,6 +460,127 @@ async function countPosts() {
   return rows[0].c;
 }
 
+// --- Resources ---
+const RESOURCE_CATEGORIES = ['powerpoints', 'lesson plans', 'teaching tips', 'worksheets', 'videos', 'other'];
+
+function normalizeCategory(cat) {
+  if (!cat) return 'other';
+  const v = cat.toString().trim().toLowerCase();
+  return RESOURCE_CATEGORIES.includes(v) ? v : 'other';
+}
+
+async function createResource({ id, branchId, title, category, description, fileUrl, fileName, fileType }) {
+  const cat = normalizeCategory(category);
+  await getPool().query(
+    'INSERT INTO resources (id, branchId, title, category, description, fileUrl, fileName, fileType) VALUES (?,?,?,?,?,?,?,?)',
+    [id, branchId, title, cat, description || null, fileUrl || null, fileName || null, fileType || null]
+  );
+  return getResourceById(id);
+}
+
+async function getResourceById(id) {
+  const [rows] = await getPool().query(
+    `SELECT r.*, b.name as branchName FROM resources r LEFT JOIN branches b ON b.id=r.branchId WHERE r.id=? LIMIT 1`,
+    [id]
+  );
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    id: r.id,
+    branchId: r.branchId,
+    branchName: r.branchName || r.branchId,
+    title: r.title,
+    category: r.category,
+    description: r.description || '',
+    fileUrl: r.fileUrl || '',
+    fileName: r.fileName || '',
+    fileType: r.fileType || '',
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
+}
+
+async function getBranchResources(branchId, limit = 100, offset = 0) {
+  limit = Math.max(0, parseInt(limit, 10) || 0);
+  offset = Math.max(0, parseInt(offset, 10) || 0);
+  const [rows] = await getPool().query(
+    `SELECT r.*, b.name as branchName FROM resources r LEFT JOIN branches b ON b.id=r.branchId WHERE r.branchId=? ORDER BY r.createdAt DESC LIMIT ${limit} OFFSET ${offset}`,
+    [branchId]
+  );
+  return rows.map(r => ({
+    id: r.id,
+    branchId: r.branchId,
+    branchName: r.branchName || r.branchId,
+    title: r.title,
+    category: r.category,
+    description: r.description || '',
+    fileUrl: r.fileUrl || '',
+    fileName: r.fileName || '',
+    fileType: r.fileType || '',
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
+}
+
+async function getAllResources({ q, category, branchId, limit = 100, offset = 0 } = {}) {
+  limit = Math.max(0, parseInt(limit, 10) || 0);
+  offset = Math.max(0, parseInt(offset, 10) || 0);
+  const where = [];
+  const vals = [];
+  if (category && category !== 'all') {
+    where.push('r.category = ?');
+    vals.push(normalizeCategory(category));
+  }
+  if (branchId) {
+    where.push('r.branchId = ?');
+    vals.push(branchId);
+  }
+  if (q && q.trim()) {
+    const like = `%${q.trim()}%`;
+    where.push('(r.title LIKE ? OR r.description LIKE ? OR r.fileName LIKE ?)');
+    vals.push(like, like, like);
+  }
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+  const [rows] = await getPool().query(
+    `SELECT r.*, b.name as branchName FROM resources r LEFT JOIN branches b ON b.id=r.branchId ${whereSql} ORDER BY r.createdAt DESC LIMIT ${limit} OFFSET ${offset}`,
+    vals
+  );
+  return rows.map(r => ({
+    id: r.id,
+    branchId: r.branchId,
+    branchName: r.branchName || r.branchId,
+    title: r.title,
+    category: r.category,
+    description: r.description || '',
+    fileUrl: r.fileUrl || '',
+    fileName: r.fileName || '',
+    fileType: r.fileType || '',
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  }));
+}
+
+async function updateResource(branchId, resourceId, { title, category, description, fileUrl, fileName, fileType }) {
+  const fields = [];
+  const vals = [];
+  if (title !== undefined) { fields.push('title=?'); vals.push(title); }
+  if (category !== undefined) { fields.push('category=?'); vals.push(normalizeCategory(category)); }
+  if (description !== undefined) { fields.push('description=?'); vals.push(description); }
+  if (fileUrl !== undefined) { fields.push('fileUrl=?'); vals.push(fileUrl); }
+  if (fileName !== undefined) { fields.push('fileName=?'); vals.push(fileName); }
+  if (fileType !== undefined) { fields.push('fileType=?'); vals.push(fileType); }
+  if (fields.length === 0) return null;
+  vals.push(resourceId, branchId);
+  const [res] = await getPool().query(`UPDATE resources SET ${fields.join(', ')} WHERE id=? AND branchId=?`, vals);
+  if (res.affectedRows === 0) return null;
+  return getResourceById(resourceId);
+}
+
+async function deleteResource(branchId, resourceId) {
+  const [res] = await getPool().query('DELETE FROM resources WHERE id=? AND branchId=?', [resourceId, branchId]);
+  return res.affectedRows > 0;
+}
+
 module.exports = {
   getPool,
   initDb,
@@ -440,6 +588,7 @@ module.exports = {
   getBranches,
   getBranchById,
   getBranchByUsername,
+  createBranch,
   updateBranchHome,
   getBranchPosts,
   getAllPosts,
@@ -456,4 +605,12 @@ module.exports = {
   getValidReset,
   verifyResetCode,
   consumeReset,
+  RESOURCE_CATEGORIES,
+  normalizeCategory,
+  createResource,
+  getResourceById,
+  getBranchResources,
+  getAllResources,
+  updateResource,
+  deleteResource,
 };

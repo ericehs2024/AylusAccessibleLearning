@@ -42,8 +42,12 @@ export default function BranchHome(){
         <div className="tabs" style={{margin:0}}>
           <Link to={`/branch/${id}`} className="tab active">Home</Link>
           <Link to={`/branch/${id}/posts`} className="tab">Posts</Link>
+          <Link to={`/resources?branch=${id}`} className="tab">Resources</Link>
         </div>
-        {isOwner && <Link to={`/branch/${id}/admin/home`} className="btn btn-small">Edit Home</Link>}
+        <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+          {isOwner && <Link to={`/branch/${id}/admin/resources`} className="btn btn-small btn-outline">Manage Resources</Link>}
+          {isOwner && <Link to={`/branch/${id}/admin/home`} className="btn btn-small">Edit Home</Link>}
+        </div>
       </div>
 
       <div className="card">
