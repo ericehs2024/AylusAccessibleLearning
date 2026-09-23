@@ -14,6 +14,7 @@ import AdminHomeEditor from './pages/AdminHomeEditor'
 import AdminPostsEditor from './pages/AdminPostsEditor'
 import AdminResourcesEditor from './pages/AdminResourcesEditor'
 import ChangePassword from './pages/ChangePassword'
+import ForgotPassword from './pages/ForgotPassword'
 import Admin from './pages/Admin'
 import { useAuth } from './context/AuthContext'
 import { useTheme } from './context/ThemeContext'
@@ -131,27 +132,30 @@ export default function App(){
       <VoronoiBackground />
       <SiteHeader/>
       <Navbar/>
-      <Routes>
-        <Route path="/" element={<OrgHome/>} />
-        <Route path="/upcoming" element={<Upcoming/>} />
-        <Route path="/past" element={<PastEvents/>} />
-        <Route path="/my-branch" element={<MyBranch/>} />
-        <Route path="/resources" element={<Resources/>} />
-        <Route path="/branches" element={<Branches/>} />
-        {/* canonical wireframe URL: /branches/:branchId/posts/:postId */}
-        <Route path="/branches/:branchId/posts/:postId" element={<PostDetail/>} />
-        {/* legacy/supporting routes */}
-        <Route path="/post/:postId" element={<PostDetail/>} />
-        <Route path="/branch/:branchId/post/:postId" element={<PostDetail/>} />
-        <Route path="/login" element={<Login/>} />
-        <Route path="/change-password" element={<ChangePassword/>} />
-        <Route path="/admin" element={<Admin/>} />
-        <Route path="/branch/:id" element={<BranchHome/>} />
-        <Route path="/branch/:id/posts" element={<BranchPosts/>} />
-        <Route path="/branch/:id/admin/home" element={<AdminHomeEditor/>} />
-        <Route path="/branch/:id/admin/posts" element={<AdminPostsEditor/>} />
-        <Route path="/branch/:id/admin/resources" element={<AdminResourcesEditor/>} />
-      </Routes>
+      <main style={{flex:1, display:'flex', flexDirection:'column'}}>
+        <Routes>
+          <Route path="/" element={<OrgHome/>} />
+          <Route path="/upcoming" element={<Upcoming/>} />
+          <Route path="/past" element={<PastEvents/>} />
+          <Route path="/my-branch" element={<MyBranch/>} />
+          <Route path="/resources" element={<Resources/>} />
+          <Route path="/branches" element={<Branches/>} />
+          {/* canonical wireframe URL: /branches/:branchId/posts/:postId */}
+          <Route path="/branches/:branchId/posts/:postId" element={<PostDetail/>} />
+          {/* legacy/supporting routes */}
+          <Route path="/post/:postId" element={<PostDetail/>} />
+          <Route path="/branch/:branchId/post/:postId" element={<PostDetail/>} />
+          <Route path="/login" element={<Login/>} />
+          <Route path="/forgot-password" element={<ForgotPassword/>} />
+          <Route path="/change-password" element={<ChangePassword/>} />
+          <Route path="/admin" element={<Admin/>} />
+          <Route path="/branch/:id" element={<BranchHome/>} />
+          <Route path="/branch/:id/posts" element={<BranchPosts/>} />
+          <Route path="/branch/:id/admin/home" element={<AdminHomeEditor/>} />
+          <Route path="/branch/:id/admin/posts" element={<AdminPostsEditor/>} />
+          <Route path="/branch/:id/admin/resources" element={<AdminResourcesEditor/>} />
+        </Routes>
+      </main>
       <footer style={{textAlign:'center', padding:'32px', fontSize:13}}>
         © {new Date().getFullYear()} Aylus Accessible Learning • Non-profit Organization
       </footer>

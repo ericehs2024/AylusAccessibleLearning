@@ -1,10 +1,10 @@
 const path = require('path');
 const fs = require('fs');
+// Load base .env first, then override with .env.local if present (so SMTP from .env is retained locally unless overridden)
+require('dotenv').config();
 const localEnv = path.join(__dirname, '.env.local');
 if (fs.existsSync(localEnv)) {
-  require('dotenv').config({ path: localEnv });
-} else {
-  require('dotenv').config();
+  require('dotenv').config({ path: localEnv, override: true });
 }
 const express = require('express');
 const cors = require('cors');
@@ -35,8 +35,41 @@ const storage = multer.diskStorage({
     cb(null, name);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 5*1024*1024 } });
-const resourceUpload = multer({ storage, limits: { fileSize: 20*1024*1024 } });
+const upload = multer({ storage, limits: { fileSize: 10*1024*1024 } });
+
+// --- resource upload: limit to common documents + videos ---
+const ALLOWED_RESOURCE_EXTS = ['.pdf','.doc','.docx','.ppt','.pptx','.xls','.xlsx','.txt','.csv','.rtf','.odt','.ods','.odp','.mp4','.mov','.avi','.webm','.mkv'];
+const ALLOWED_RESOURCE_MIMES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain','text/csv','application/csv','text/rtf','application/rtf',
+  'application/vnd.oasis.opendocument.text',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'application/vnd.oasis.opendocument.presentation',
+  'video/mp4','video/quicktime','video/x-msvideo','video/webm','video/x-matroska',
+]);
+function isAllowedResourceFile(file){
+  const ext = path.extname(file.originalname).toLowerCase();
+  if(ALLOWED_RESOURCE_EXTS.includes(ext)) return true;
+  // also allow by MIME for files without extension mismatch (e.g. browser reports correctly)
+  if(ALLOWED_RESOURCE_MIMES.has(file.mimetype.toLowerCase())) return true;
+  // text/* with allowed ext fallback already covers txt/csv
+  return false;
+}
+const resourceUpload = multer({
+  storage,
+  limits: { fileSize: 10*1024*1024 },
+  fileFilter: (req, file, cb) => {
+    if(isAllowedResourceFile(file)) return cb(null, true);
+    req.fileValidationError = `Invalid file type. Allowed documents: ${ALLOWED_RESOURCE_EXTS.join(', ')}`;
+    return cb(null, false);
+  }
+});
 
 // --- auth middleware ---
 function auth(req, res, next) {
@@ -131,25 +164,42 @@ function isValidEmail(email) {
 
 async function sendVerificationEmail(to, code) {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
-  if (!SMTP_HOST || !SMTP_USER) {
-    console.log(`[DEV EMAIL] Verification code for ${to}: ${code} (expires 5 min)`);
+  // If SMTP not configured, fall back to dev mode (console log + return code to client)
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    console.log(`[DEV EMAIL] Verification code for ${to}: ${code} (expires 5 min) — SMTP not configured, using dev mode`);
     return { devMode: true };
   }
-  const nodemailer = require('nodemailer');
-  const transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: Number(SMTP_PORT || 465),
-    secure: Number(SMTP_PORT || 465) === 465,
-    auth: { user: SMTP_USER, pass: SMTP_PASS },
-  });
-  await transporter.sendMail({
-    from: SMTP_FROM || SMTP_USER,
-    to,
-    subject: 'Aylus - Password Reset Verification Code',
-    text: `Your verification code is: ${code}\nIt expires in 5 minutes.`,
-    html: `<p>Your verification code is: <b style="font-size:20px;letter-spacing:3px">${code}</b></p><p>It expires in 5 minutes. Do not share it.</p>`,
-  });
-  return { devMode: false };
+  try {
+    const nodemailer = require('nodemailer');
+    const port = Number(SMTP_PORT || 465);
+    const transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port,
+      secure: port === 465,
+      auth: { user: SMTP_USER, pass: SMTP_PASS },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    });
+    // verify connection before sending for clearer error
+    await transporter.verify().catch(e => {
+      console.warn('[EMAIL] SMTP verify warning:', e.message);
+    });
+    const info = await transporter.sendMail({
+      from: SMTP_FROM || SMTP_USER,
+      to,
+      subject: 'Aylus - Password Reset Verification Code',
+      text: `Your verification code is: ${code}\nIt expires in 5 minutes. Do not share it.`,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.6"><p>Your verification code is:</p><p><b style="font-size:22px;letter-spacing:4px;background:#f1f3f4;padding:8px 14px;border-radius:8px">${code}</b></p><p>It expires in <b>5 minutes</b>. Do not share it.</p><p style="color:#5f6368;font-size:12px">Aylus Accessible Learning</p></div>`,
+    });
+    console.log(`[EMAIL] Verification code sent to ${to} via ${SMTP_HOST} (messageId: ${info.messageId})`);
+    return { devMode: false };
+  } catch (e) {
+    console.error(`[EMAIL] Failed to send verification code to ${to}:`, e.message);
+    // Don't expose code to client when SMTP is configured — throw so caller returns 500 with clear error
+    throw new Error(`Failed to send email via ${SMTP_HOST}: ${e.message}`);
+  }
 }
 
 // POST login (branch) - rejects admin username to prevent conflict
@@ -196,8 +246,10 @@ app.post('/api/auth/request-password-reset', auth, async (req, res) => {
       ...(result.devMode ? { devCode: code, devMode: true } : {})
     });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Failed to send verification code' });
+    console.error('[request-password-reset] error:', e);
+    // surface SMTP errors to client for debugging (contains Failed to send email prefix)
+    const isEmailError = e.message && e.message.includes('Failed to send email');
+    res.status(500).json({ error: isEmailError ? e.message : 'Failed to send verification code' });
   }
 });
 
@@ -216,7 +268,7 @@ app.post('/api/auth/verify-reset-code', auth, async (req, res) => {
   }
 });
 
-// POST reset password - step 3: set new password
+// POST reset password - step 3: set new password (authenticated flow)
 app.post('/api/auth/reset-password', auth, async (req, res) => {
   try {
     const branchId = req.user.branchId;
@@ -232,6 +284,89 @@ app.post('/api/auth/reset-password', auth, async (req, res) => {
     await db.updateBranchEmailAndPassword(branchId, reset.email, hash);
 
     res.json({ ok: true, message: 'Password updated successfully' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// POST change password — authenticated, requires old password (no email)
+app.post('/api/auth/change-password', auth, async (req, res) => {
+  try {
+    const branchId = req.user.branchId;
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) return res.status(400).json({ error: 'oldPassword and newPassword required' });
+    const pwError = validatePassword(newPassword);
+    if (pwError) return res.status(400).json({ error: pwError });
+    if (oldPassword === newPassword) return res.status(400).json({ error: 'New password must differ from old password' });
+    const branch = await db.getBranchById(branchId);
+    if (!branch) return res.status(404).json({ error: 'Branch not found' });
+    const ok = await bcrypt.compare(oldPassword, branch.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Current password incorrect' });
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.updateBranchEmailAndPassword(branchId, null, hash);
+    res.json({ ok: true, message: 'Password changed successfully' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// --- unauthenticated forgot/reset password flow (for Login -> Forgot password) ---
+// POST /api/auth/forgot/request { username, email, confirmEmail } -> sends verification code to email
+app.post('/api/auth/forgot/request', async (req, res) => {
+  try {
+    const { username, email, confirmEmail } = req.body;
+    if (!username || !email || !confirmEmail) return res.status(400).json({ error: 'username, email and confirmEmail required' });
+    if (email !== confirmEmail) return res.status(400).json({ error: 'Emails do not match' });
+    if (!isValidEmail(email)) return res.status(400).json({ error: 'Invalid email format' });
+    const branch = await db.getBranchByUsername(username.trim());
+    if (!branch) return res.status(404).json({ error: 'Branch username not found' });
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    await db.createPasswordReset(branch.id, email, code, expiresAt);
+    const result = await sendVerificationEmail(email, code);
+    res.json({
+      ok: true,
+      message: 'Verification code sent to email (expires in 5 minutes)',
+      expiresAt: expiresAt.toISOString(),
+      ...(result.devMode ? { devCode: code, devMode: true } : {})
+    });
+  } catch (e) {
+    console.error('[forgot/request] error:', e);
+    const isEmailError = e.message && e.message.includes('Failed to send email');
+    res.status(500).json({ error: isEmailError ? e.message : 'Failed to send verification code' });
+  }
+});
+
+app.post('/api/auth/forgot/verify', async (req, res) => {
+  try {
+    const { username, code } = req.body;
+    if (!username || !code) return res.status(400).json({ error: 'username and code required' });
+    const branch = await db.getBranchByUsername(username.trim());
+    if (!branch) return res.status(404).json({ error: 'Branch not found' });
+    const reset = await db.verifyResetCode(branch.id, code);
+    if (!reset) return res.status(400).json({ error: 'Invalid or expired code' });
+    res.json({ ok: true, message: 'Code verified' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.post('/api/auth/forgot/reset', async (req, res) => {
+  try {
+    const { username, code, newPassword } = req.body;
+    if (!username || !code || !newPassword) return res.status(400).json({ error: 'username, code and newPassword required' });
+    const pwError = validatePassword(newPassword);
+    if (pwError) return res.status(400).json({ error: pwError });
+    const branch = await db.getBranchByUsername(username.trim());
+    if (!branch) return res.status(404).json({ error: 'Branch not found' });
+    const reset = await db.consumeReset(branch.id, code);
+    if (!reset) return res.status(400).json({ error: 'Invalid, unverified or expired code' });
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.updateBranchEmailAndPassword(branch.id, reset.email, hash);
+    res.json({ ok: true, message: 'Password reset successfully' });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'DB error' });
@@ -383,9 +518,10 @@ app.post('/api/upload', auth, upload.single('image'), (req, res) => {
   res.json({ url });
 });
 
-// resource file upload (powerpoints, pdfs, etc — up to 20MB)
+// resource file upload — limited to common documents (up to 20MB)
 app.post('/api/upload/resource', auth, resourceUpload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file' });
+  if (req.fileValidationError) return res.status(400).json({ error: req.fileValidationError });
+  if (!req.file) return res.status(400).json({ error: `No file or invalid file type. Allowed: ${ALLOWED_RESOURCE_EXTS.join(', ')}` });
   const url = `/uploads/${req.file.filename}`;
   res.json({ url, fileName: req.file.originalname, fileType: req.file.mimetype, size: req.file.size });
 });
@@ -566,6 +702,16 @@ app.get('/api/health', async (req,res)=> {
   } catch (e) {
     res.status(500).json({ ok: false, db: 'disconnected', error: e.message });
   }
+});
+
+// multer/global upload error handler — all files capped at 10MB
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File too large (max 10MB). Files larger than 10MB, please add as links in the description.' });
+    return res.status(400).json({ error: err.message });
+  }
+  if (err) return res.status(400).json({ error: err.message || 'Upload error' });
+  next();
 });
 
 // serve frontend dist if built (fixes Cannot GET / on Hostinger)

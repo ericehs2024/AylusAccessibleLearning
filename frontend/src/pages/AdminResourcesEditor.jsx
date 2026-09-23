@@ -6,6 +6,15 @@ import { useToast } from '../components/Toast'
 
 const CATEGORIES = ['powerpoints','lesson plans','teaching tips','worksheets','videos','other']
 
+// common documents + videos — restrict resource uploads, all files <10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+const ALLOWED_DOC_EXTS = ['.pdf','.doc','.docx','.ppt','.pptx','.xls','.xlsx','.txt','.csv','.rtf','.odt','.ods','.odp','.mp4','.mov','.avi','.webm','.mkv']
+const ALLOWED_DOC_ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.rtf,.odt,.ods,.odp,.mp4,.mov,.avi,.webm,.mkv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv,application/rtf,application/vnd.oasis.opendocument.text,application/vnd.oasis.opendocument.spreadsheet,application/vnd.oasis.opendocument.presentation,video/mp4,video/quicktime,video/x-msvideo,video/webm,video/x-matroska'
+function isAllowedDocFile(file){
+  const name = (file.name || '').toLowerCase()
+  return ALLOWED_DOC_EXTS.some(ext => name.endsWith(ext))
+}
+
 function isImageFile(url, type, name){
   const t = (type || '').toLowerCase()
   if(t.startsWith('image/')) return true
@@ -27,6 +36,16 @@ function ResourceCreator({ branchId, onCreated }){
   const handleFile = async (e)=>{
     const f = e.target.files?.[0]
     if(!f) return
+    if(!isAllowedDocFile(f)){
+      e.target.value = ''
+      toast(`Invalid file type. Allowed: ${ALLOWED_DOC_EXTS.join(', ')}`,'error')
+      return
+    }
+    if(f.size > MAX_FILE_SIZE){
+      e.target.value = ''
+      toast('File too large (max 10MB). Files larger than 10MB, please add as links in the description textbox.','error')
+      return
+    }
     const fd = new FormData()
     fd.append('file', f)
     setUploading(true)
@@ -38,7 +57,7 @@ function ResourceCreator({ branchId, onCreated }){
       toast('File uploaded','success')
     }catch(ex){
       toast(ex.response?.data?.error || 'Upload failed','error')
-    }finally{ setUploading(false)}
+    }finally{ setUploading(false); e.target.value = '' }
   }
 
   const create = async ()=>{
@@ -56,22 +75,27 @@ function ResourceCreator({ branchId, onCreated }){
   return (
     <div className="card">
       <h3 style={{marginBottom:10}}>Add New Resource — share with all branches</h3>
-      <p style={{fontSize:13, color:'#5f6368', marginBottom:10}}>Upload a local file (ppt, pdf, doc, mp4) and/or type a description. Pick a label so others can filter.</p>
+      <p style={{fontSize:13, color:'#5f6368', marginBottom:10}}>Upload a document ({ALLOWED_DOC_EXTS.join(', ')}) and/or type a description. Pick a label so others can filter.</p>
       <label className="label">Title</label>
       <input className="input" value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Intro to Fractions — Lesson Plan" />
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginTop:12}}>
-        <div>
-          <label className="label">Label / Category</label>
-          <select className="select" value={category} onChange={e=>setCategory(e.target.value)} style={{marginTop:6}}>
-            {CATEGORIES.map(c=> <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div>
+      <div style={{marginTop:12}}>
+        <label className="label">Label / Category</label>
+        <select className="select" value={category} onChange={e=>setCategory(e.target.value)} style={{marginTop:6}}>
+          {CATEGORIES.map(c=> <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <div style={{marginTop:12}}>
+        <label className="label">Description / typed content</label>
+        <textarea className="textarea" value={description} onChange={e=>setDescription(e.target.value)} placeholder="Type lesson details, teaching tips, or instructions. You can include links. Leave empty if file is enough." style={{minHeight:110}} />
+      </div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, marginTop:16, flexWrap:'wrap'}}>
+        <div style={{flex:'1 1 260px', minWidth:220}}>
           <label className="label">Attached file {fileName && `— ${fileName}`}</label>
-          <div style={{display:'flex', gap:8, marginTop:6}}>
+          <div style={{fontSize:11, color:'#6b6b6b', marginTop:2, lineHeight:1.4}}>Max 10MB. Files larger than 10MB, please add as links in the description textbox.</div>
+          <div style={{display:'flex', gap:8, marginTop:6, flexWrap:'wrap'}}>
             <label className="btn btn-small btn-outline" style={{cursor:'pointer', whiteSpace:'nowrap'}}>
               {uploading ? 'Uploading...' : fileUrl ? 'Replace file' : 'Upload file'}
-              <input type="file" style={{display:'none'}} onChange={handleFile} />
+              <input type="file" style={{display:'none'}} onChange={handleFile} accept={ALLOWED_DOC_ACCEPT} />
             </label>
             {fileUrl && <a href={fileUrl} target="_blank" rel="noreferrer" className="btn btn-small btn-outline">View</a>}
             {fileUrl && <button className="btn btn-small btn-danger" onClick={()=>{setFileUrl(''); setFileName(''); setFileType('')}}>Remove</button>}
@@ -87,12 +111,8 @@ function ResourceCreator({ branchId, onCreated }){
             )
           )}
         </div>
+        <button className="btn" style={{alignSelf:'flex-end', marginLeft:'auto', marginTop:20}} onClick={create} disabled={saving || uploading}>{saving ? 'Publishing...' : 'Publish Resource'}</button>
       </div>
-      <div style={{marginTop:12}}>
-        <label className="label">Description / typed content</label>
-        <textarea className="textarea" value={description} onChange={e=>setDescription(e.target.value)} placeholder="Type lesson details, teaching tips, or instructions. You can include links. Leave empty if file is enough." style={{minHeight:110}} />
-      </div>
-      <button className="btn" style={{marginTop:14}} onClick={create} disabled={saving || uploading}>{saving ? 'Publishing...' : 'Publish Resource'}</button>
     </div>
   )
 }
@@ -128,6 +148,16 @@ export default function AdminResourcesEditor(){
   const handleEditFile = async (e)=>{
     const f = e.target.files?.[0]
     if(!f) return
+    if(!isAllowedDocFile(f)){
+      e.target.value = ''
+      toast(`Invalid file type. Allowed: ${ALLOWED_DOC_EXTS.join(', ')}`,'error')
+      return
+    }
+    if(f.size > MAX_FILE_SIZE){
+      e.target.value = ''
+      toast('File too large (max 10MB). Files larger than 10MB, please add as links in the description textbox.','error')
+      return
+    }
     const fd = new FormData()
     fd.append('file', f)
     try{
@@ -136,6 +166,7 @@ export default function AdminResourcesEditor(){
       setEditFileName(res.data.fileName || f.name)
       toast('File uploaded','success')
     }catch(ex){ toast(ex.response?.data?.error || 'Upload failed','error')}
+    finally{ e.target.value = '' }
   }
 
   const saveEdit = async (resId)=>{
@@ -181,8 +212,9 @@ export default function AdminResourcesEditor(){
                   </div>
                   <div>
                     <label className="label">File</label>
+                    <div style={{fontSize:11, color:'#6b6b6b', marginTop:2, lineHeight:1.4}}>Max 10MB. Files larger than 10MB, please add as links in the description.</div>
                     <div style={{display:'flex', gap:6, marginTop:6}}>
-                      <label className="btn btn-small btn-outline" style={{cursor:'pointer'}}>Replace <input type="file" style={{display:'none'}} onChange={handleEditFile} /></label>
+                      <label className="btn btn-small btn-outline" style={{cursor:'pointer'}}>Replace <input type="file" style={{display:'none'}} onChange={handleEditFile} accept={ALLOWED_DOC_ACCEPT} /></label>
                       {editFileUrl && <button className="btn btn-small btn-danger" onClick={()=>{setEditFileUrl(''); setEditFileName('')}}>Clear</button>}
                     </div>
                     {editFileUrl && (

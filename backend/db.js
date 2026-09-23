@@ -1,11 +1,10 @@
 const path = require('path');
 const fs = require('fs');
-// Load .env.local first for localhost dev, fallback to .env (Hostinger)
+// Load base .env first, then override with .env.local if present
+require('dotenv').config();
 const localEnv = path.join(__dirname, '.env.local');
 if (fs.existsSync(localEnv)) {
-  require('dotenv').config({ path: localEnv });
-} else {
-  require('dotenv').config();
+  require('dotenv').config({ path: localEnv, override: true });
 }
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
@@ -258,6 +257,11 @@ async function getBranchById(id) {
 
 async function getBranchByUsername(username) {
   const [rows] = await getPool().query('SELECT * FROM branches WHERE username=?', [username]);
+  return rows[0] || null;
+}
+
+async function getBranchByEmail(email) {
+  const [rows] = await getPool().query('SELECT * FROM branches WHERE email=? LIMIT 1', [email]);
   return rows[0] || null;
 }
 
@@ -588,6 +592,7 @@ module.exports = {
   getBranches,
   getBranchById,
   getBranchByUsername,
+  getBranchByEmail,
   createBranch,
   updateBranchHome,
   getBranchPosts,

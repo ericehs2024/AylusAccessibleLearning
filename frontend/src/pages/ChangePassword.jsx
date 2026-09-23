@@ -15,6 +15,7 @@ function validatePassword(pw) {
 export default function ChangePassword(){
   const { user, token } = useAuth()
   const nav = useNavigate()
+  const [mode, setMode] = useState('direct') // 'direct' = oldPassword, 'email' = verification code
   const [step, setStep] = useState(1) // 1 email, 2 code, 3 new password
   const [email, setEmail] = useState('')
   const [confirmEmail, setConfirmEmail] = useState('')
@@ -26,6 +27,10 @@ export default function ChangePassword(){
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
+  // direct change with old password
+  const [oldPassword, setOldPassword] = useState('')
+  const [directNewPassword, setDirectNewPassword] = useState('')
+  const [directConfirm, setDirectConfirm] = useState('')
   const timerRef = useRef(null)
 
   useEffect(()=>{
@@ -86,34 +91,82 @@ export default function ChangePassword(){
     finally{ setLoading(false)}
   }
 
+  const handleDirectChange = async (e)=>{
+    e.preventDefault()
+    setErr(''); setMsg('')
+    const v = validatePassword(directNewPassword)
+    if(v) return setErr(v)
+    if(directNewPassword !== directConfirm) return setErr('Passwords do not match')
+    if(!oldPassword) return setErr('Current password required')
+    setLoading(true)
+    try{
+      await api.post('/api/auth/change-password', { oldPassword, newPassword: directNewPassword })
+      setMsg('Password changed successfully! Please login again.')
+      setOldPassword(''); setDirectNewPassword(''); setDirectConfirm('')
+      setTimeout(()=> nav('/'), 1500)
+    }catch(ex){ setErr(ex.response?.data?.error || 'Failed to change password') }
+    finally{ setLoading(false)}
+  }
+
   const mmss = `${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`
 
   return (
     <div className="container" style={{maxWidth:520, padding:'32px 20px'}}>
       <h2>Change Password — {user.username}</h2>
-      <p style={{color:'#5f6368', fontSize:13, margin:'6px 0 14px'}}>Steps: enter email twice → receive code (5 min expiry) → verify → set new password</p>
+      <p style={{color:'#5f6368', fontSize:13, margin:'6px 0 14px'}}>Choose: change directly with current password, or reset via email verification code (5 min expiry, sent via SMTP).</p>
 
       <div style={{display:'flex', gap:8, marginBottom:14}}>
-        <span className="badge" style={{background: step===1 ? '#1a73e8' : '#e8f0fe', color: step===1 ? 'white' : '#1a73e8'}}>1 Email</span>
-        <span className="badge" style={{background: step===2 ? '#1a73e8' : '#e8f0fe', color: step===2 ? 'white' : '#1a73e8'}}>2 Verify</span>
-        <span className="badge" style={{background: step===3 ? '#1a73e8' : '#e8f0fe', color: step===3 ? 'white' : '#1a73e8'}}>3 New Password</span>
+        <button onClick={()=>{setMode('direct'); setErr(''); setMsg('')}} className="btn btn-small" style={{background: mode==='direct' ? '#1a73e8' : 'white', color: mode==='direct' ? 'white' : '#1a73e8', border:'1.5px solid #1a73e8'}}>Change with current password</button>
+        <button onClick={()=>{setMode('email'); setErr(''); setMsg('')}} className="btn btn-small btn-outline" style={{background: mode==='email' ? '#1a73e8' : 'white', color: mode==='email' ? 'white' : '#1a73e8'}}>Reset via Email Code</button>
       </div>
 
       {err && <div style={{background:'#fce8e6', color:'#b3261e', padding:10, borderRadius:8, marginBottom:12, fontSize:14}}>{err}</div>}
       {msg && <div style={{background:'#e6f4ea', color:'#137333', padding:10, borderRadius:8, marginBottom:12, fontSize:14}}>{msg}</div>}
 
-      {step===1 && (
+      {mode==='direct' && (
+        <form onSubmit={handleDirectChange} className="card">
+          <label className="label">Current Password</label>
+          <PasswordInput value={oldPassword} onChange={e=>setOldPassword(e.target.value)} placeholder="Current password" required />
+          <label className="label" style={{marginTop:12, display:'block'}}>New Password</label>
+          <PasswordInput value={directNewPassword} onChange={e=>setDirectNewPassword(e.target.value)} placeholder="New password" required />
+          <div style={{background:'#fef7e0', border:'1px solid #fbbc04', borderRadius:8, padding:'10px 12px', marginTop:8, fontSize:12, lineHeight:1.5}}>
+            <b>Hint:</b> 8+ chars, 2+ digits, 1 uppercase. Example: <code>Sunshine12</code>
+            <div style={{marginTop:6}}>
+              <span style={{color: directNewPassword.length>=8 ? '#137333':'#5f6368'}}>• {directNewPassword.length} / 8 chars {directNewPassword.length>=8 ? '✓':'✗'}</span><br/>
+              <span style={{color: ((directNewPassword.match(/\d/g)||[]).length)>=2 ? '#137333':'#5f6368'}}>• {(directNewPassword.match(/\d/g)||[]).length} / 2 digits {((directNewPassword.match(/\d/g)||[]).length)>=2 ? '✓':'✗'}</span><br/>
+              <span style={{color: /[A-Z]/.test(directNewPassword) ? '#137333':'#5f6368'}}>• Uppercase {/[A-Z]/.test(directNewPassword) ? '✓':'✗'}</span>
+            </div>
+          </div>
+          <label className="label" style={{marginTop:12, display:'block'}}>Confirm New Password</label>
+          <PasswordInput value={directConfirm} onChange={e=>setDirectConfirm(e.target.value)} placeholder="Re-enter new password" required />
+          <button className="btn" style={{marginTop:14, width:'100%'}} disabled={loading}>{loading ? 'Saving...' : 'Change Password'}</button>
+          <p style={{fontSize:12, color:'#5f6368', marginTop:8, textAlign:'center'}}>Email not required. Uses current password verification.</p>
+        </form>
+      )}
+
+      {mode==='email' && (
+        <>
+          <p style={{color:'#5f6368', fontSize:13, margin:'0 0 10px'}}>Email flow: enter email twice → receive code → verify → set new password</p>
+          <div style={{display:'flex', gap:8, marginBottom:14}}>
+            <span className="badge" style={{background: step===1 ? '#1a73e8' : '#e8f0fe', color: step===1 ? 'white' : '#1a73e8'}}>1 Email</span>
+            <span className="badge" style={{background: step===2 ? '#1a73e8' : '#e8f0fe', color: step===2 ? 'white' : '#1a73e8'}}>2 Verify</span>
+            <span className="badge" style={{background: step===3 ? '#1a73e8' : '#e8f0fe', color: step===3 ? 'white' : '#1a73e8'}}>3 New Password</span>
+          </div>
+        </>
+      )}
+
+      {mode==='email' && step===1 && (
         <form onSubmit={requestCode} className="card">
           <label className="label">Email</label>
           <input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin@branch.org" required />
           <label className="label" style={{marginTop:12, display:'block'}}>Confirm Email</label>
           <input className="input" type="email" value={confirmEmail} onChange={e=>setConfirmEmail(e.target.value)} placeholder="re-enter email" required />
-          <p style={{fontSize:12, color:'#5f6368', marginTop:8}}>Both emails must match. Code will be sent to this address.</p>
+          <p style={{fontSize:12, color:'#5f6368', marginTop:8}}>Both emails must match. Code will be sent to this address via SMTP ({/smtp/i.test('')?'configured':'dev mode logs to console'}).</p>
           <button className="btn" style={{marginTop:14, width:'100%'}} disabled={loading}>{loading ? 'Sending...' : 'Send Verification Code'}</button>
         </form>
       )}
 
-      {step===2 && (
+      {mode==='email' && step===2 && (
         <form onSubmit={verifyCode} className="card">
           <p style={{fontSize:14, marginBottom:8}}>Code sent to <b>{email}</b> — expires in <b style={{color: remaining<60 ? '#d93025':'#1a73e8'}}>{mmss}</b></p>
           <div style={{height:6, background:'#e8eaed', borderRadius:999, overflow:'hidden', marginBottom:12}}>
@@ -127,7 +180,7 @@ export default function ChangePassword(){
         </form>
       )}
 
-      {step===3 && (
+      {mode==='email' && step===3 && (
         <form onSubmit={resetPassword} className="card">
           <label className="label">New Password</label>
           <PasswordInput value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="New password" required />

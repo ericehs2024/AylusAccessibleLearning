@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
 import PasswordInput from '../components/PasswordInput'
@@ -44,6 +44,10 @@ export default function Login(){
         <label className="label" style={{marginTop:12, display:'block'}}>Password</label>
         <PasswordInput value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••" />
         <button className="btn" style={{marginTop:16, width:'100%'}} disabled={loading}>{loading ? 'Signing in...' : 'Sign In'}</button>
+        <div style={{display:'flex', justifyContent:'space-between', marginTop:12, fontSize:13}}>
+          <Link to="/forgot-password" style={{color:'#1a73e8'}}>Forgot password?</Link>
+          <Link to="/change-password" style={{color:'#5f6368'}}>Change password (logged in)</Link>
+        </div>
       </form>
     </div>
   )

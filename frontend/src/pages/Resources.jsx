@@ -170,7 +170,7 @@ export default function Resources(){
       {!user && (
         <div className="wire-card" style={{padding:20}}>
           <h3 style={{marginBottom:10}}>For Branch Admins</h3>
-          <p style={{color:'#444', fontSize:14, marginBottom:12}}>Log in to upload resources for your branch. Uploaded files (powerpoints, pdfs, videos) instantly appear here searchable by label.</p>
+          <p style={{color:'#444', fontSize:14, marginBottom:12}}>Log in to upload resources for your branch. Uploaded files (powerpoints, pdfs, videos, documents) instantly appear here searchable by label.</p>
           <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
             <Link to="/login" className="btn btn-small">Branch Login</Link>
             <Link to="/branches" className="btn btn-outline btn-small">All Branches</Link>
