@@ -29,9 +29,9 @@ export default function OrgHome(){
       <div className="container" style={{padding:'20px 20px 32px'}}>
         {/* Wireframe HOME: direct post feed, search is secondary */}
         <div style={{display:'flex', gap:8, marginBottom:14, maxWidth:520, alignItems:'center'}}>
-          <input className="input" placeholder="Search posts (title or text)..." value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter' && doSearch()} style={{flex:1, marginTop:0, borderWidth:2, borderColor:'#000'}} />
-          <button className="wire-nav-item" onClick={doSearch} style={{cursor:'pointer'}}>Search</button>
-          {(query || applied) && <button className="wire-nav-item" onClick={clear} style={{cursor:'pointer'}}>Clear</button>}
+          <input className="input" placeholder="Search posts (title or text)..." value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter' && doSearch()} style={{flex:1, marginTop:0}} />
+          <button className="btn btn-small" onClick={doSearch} style={{cursor:'pointer'}}>Search</button>
+          {(query || applied) && <button className="btn btn-small btn-outline" onClick={clear} style={{cursor:'pointer'}}>Clear</button>}
         </div>
         {applied && <p style={{fontSize:12, color:'#555', marginBottom:10}}>Showing {filtered.length} result(s) for “{applied}”.</p>}
         {filtered.length===0 ? <div className="wire-card" style={{textAlign:'center', padding:24}}>{posts.length===0 ? 'No posts yet. Check back soon for new opportunities.' : `No posts match "${applied}"`}</div> : filtered.map(p=>(

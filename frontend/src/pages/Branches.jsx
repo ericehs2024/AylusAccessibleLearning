@@ -14,17 +14,17 @@ export default function Branches(){
 
   return (
     <div className="container" style={{padding:'28px 20px'}}>
-      <h2 style={{marginBottom:6}}>All Branches</h2>
-      <p style={{color:'#5f6368', marginBottom:16, fontSize:14}}>Explore our community branches and discover their upcoming events and resources.</p>
+      <h2 style={{marginBottom:6, fontFamily:"'Montserrat', sans-serif"}}>All Branches</h2>
+      <p style={{color:'#333', marginBottom:16, fontSize:14, fontFamily:"'Lato', sans-serif"}}>Explore our community branches and discover their upcoming events and resources.</p>
 
       {branches.length===0 ? <div className="wire-card" style={{padding:24, textAlign:'center'}}>No branches yet.</div> : (
         <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px,1fr))', gap:16}}>
           {branches.map(b=>(
             <div key={b.id} className="wire-card" style={{display:'flex', flexDirection:'column', padding:16, marginBottom:0}}>
-              <h3 style={{fontSize:15, fontFamily:'Arial, Helvetica, sans-serif'}}>{b.name}</h3>
+              <h3 style={{fontSize:15, fontFamily:"'Montserrat', sans-serif", color:'#222'}}>{b.name}</h3>
               <div style={{display:'flex', gap:8, marginTop:12, flexWrap:'wrap'}}>
-                <Link to={`/branch/${b.id}`} className="wire-nav-item" style={{fontSize:12, padding:'6px 12px', minWidth:0}}>View Branch</Link>
-                <Link to={`/branch/${b.id}/posts`} className="wire-nav-item" style={{fontSize:12, padding:'6px 12px', minWidth:0}}>Posts</Link>
+                <Link to={`/branch/${b.id}`} className="wire-nav-item" style={{fontSize:12, padding:'6px 12px', minWidth:0, fontFamily:"'Mont','Montserrat',sans-serif"}}>View Branch</Link>
+                <Link to={`/branch/${b.id}/posts`} className="wire-nav-item" style={{fontSize:12, padding:'6px 12px', minWidth:0, fontFamily:"'Mont','Montserrat',sans-serif"}}>Posts</Link>
               </div>
             </div>
           ))}

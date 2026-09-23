@@ -1,9 +1,7 @@
 import React, { useState } from 'react'
-import { useTheme } from '../context/ThemeContext'
 
 export default function PasswordInput({ value, onChange, placeholder, style, className = 'input', autoFocus, required, id, name }) {
   const [show, setShow] = useState(false)
-  const { isDark } = (()=>{ try{ return useTheme() } catch{ return {isDark:false} } })()
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
       <input
@@ -30,9 +28,9 @@ export default function PasswordInput({ value, onChange, placeholder, style, cla
           top: '50%',
           transform: 'translateY(-50%)',
           marginTop: style && style.marginTop ? 0 : undefined,
-          background: isDark ? '#3a3a3a' : 'white',
-          border: `1.5px solid ${isDark ? '#555' : '#111'}`,
-          borderRadius: 999,
+          background: 'white',
+          border: `1.5px solid #111`,
+          borderRadius: 4,
           padding: '5px 9px',
           fontSize: 11,
           fontWeight: 700,
@@ -40,8 +38,8 @@ export default function PasswordInput({ value, onChange, placeholder, style, cla
           textTransform: 'uppercase',
           cursor: 'pointer',
           lineHeight: 1,
-          color: isDark ? '#e6e6e6' : '#111',
-          boxShadow: isDark ? '0 1px 4px rgba(0,0,0,0.3)' : '0 1px 4px rgba(0,0,0,0.08)',
+          color: '#111',
+          boxShadow: 'none',
           transition: 'all .2s',
         }}
       >

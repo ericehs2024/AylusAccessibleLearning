@@ -12,6 +12,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const db = require('./db');
+const { registerScraperRoutes } = require('./scraper');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -693,6 +694,9 @@ app.delete('/api/admin/posts/:postId', adminAuth, async (req, res) => {
     res.status(500).json({ error: 'DB error' });
   }
 });
+
+// Volunteer Platform scraper (ported from aylus)
+registerScraperRoutes(app);
 
 // health (also checks DB)
 app.get('/api/health', async (req,res)=> {

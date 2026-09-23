@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
-import { useTheme } from '../context/ThemeContext'
 
 const CATEGORIES = ['all','powerpoints','lesson plans','teaching tips','worksheets','videos','other']
 
@@ -15,7 +14,6 @@ function isImageFile(url, type, name){
 
 export default function Resources(){
   const { user } = useAuth()
-  const { isDark } = (()=>{ try{ return useTheme() } catch{ return {isDark:false} } })()
   const [searchParams] = useSearchParams()
   const initialBranch = searchParams.get('branch') || 'all'
   const [q, setQ] = useState('')
@@ -98,9 +96,9 @@ export default function Resources(){
             return (
               <button key={c} onClick={()=>setCategory(c)} className="badge" style={{
                 cursor:'pointer',
-                border: `1.5px solid ${isDark ? (active ? '#e6e6e6' : '#555') : '#111'}`,
-                background: active ? (isDark ? '#e6e6e6' : '#111') : (isDark ? '#2a2a2a' : 'white'),
-                color: active ? (isDark ? '#111' : 'white') : (isDark ? '#e6e6e6' : '#111')
+                border: `1.5px solid ${active ? '#b51c1c' : '#dd4444'}`,
+                background: active ? '#dd4444' : 'white',
+                color: active ? 'white' : '#b51c1c'
               }}>{c}</button>
             )
           })}
@@ -125,7 +123,7 @@ export default function Resources(){
           <div key={r.id} className="wire-card" style={{padding:'16px 18px'}}>
             <div style={{display:'flex', justifyContent:'space-between', gap:10, flexWrap:'wrap', alignItems:'flex-start'}}>
               <h3 style={{margin:0, fontSize:16, lineHeight:1.3}}>{r.title}</h3>
-              <span className="badge" style={{background:'#000', whiteSpace:'nowrap'}}>{r.category}</span>
+              <span className="badge" style={{whiteSpace:'nowrap'}}>{r.category}</span>
             </div>
             <div style={{fontSize:12, color:'#5f6368', margin:'6px 0 10px', display:'flex', gap:12, flexWrap:'wrap'}}>
               <span>Branch: <strong style={{color:'#000'}}>{r.branchName}</strong></span>
