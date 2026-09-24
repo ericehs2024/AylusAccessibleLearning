@@ -530,11 +530,27 @@ app.post('/api/upload/resource', auth, resourceUpload.single('file'), (req, res)
 // --- resources (branch uploads, searchable with labels) ---
 const RESOURCE_CATEGORIES = ['powerpoints', 'lesson plans', 'teaching tips', 'worksheets', 'videos', 'other'];
 
+// helper: check if request has valid branch/admin JWT — for gating fileUrl so only logged-in branch accounts can download
+function isRequestAuthed(req){
+  const header = req.headers.authorization;
+  if(!header) return false;
+  const token = header.split(' ')[1];
+  if(!token) return false;
+  try { jwt.verify(token, JWT_SECRET); return true; } catch { return false; }
+}
+function stripResourceForGuest(r){
+  if(!r) return r;
+  const { fileUrl, fileName, fileType, description, ...rest } = r;
+  // keep title/category/branchName visible, hide fileUrl + file details + description for guests
+  return { ...rest, fileUrl: null, fileName: null, fileType: null, description: null };
+}
+
 app.get('/api/resources', async (req, res) => {
   try {
     const { q, category, branchId, limit, offset } = req.query;
     const list = await db.getAllResources({ q, category, branchId, limit: limit || 100, offset: offset || 0 });
-    res.json(list);
+    const authed = isRequestAuthed(req);
+    res.json(authed ? list : list.map(stripResourceForGuest));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'DB error' });
@@ -545,7 +561,8 @@ app.get('/api/resources/:id', async (req, res) => {
   try {
     const r = await db.getResourceById(req.params.id);
     if (!r) return res.status(404).json({ error: 'Resource not found' });
-    res.json(r);
+    const authed = isRequestAuthed(req);
+    res.json(authed ? r : stripResourceForGuest(r));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'DB error' });
@@ -557,7 +574,8 @@ app.get('/api/branches/:id/resources', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit || '100', 10), 100);
     const offset = parseInt(req.query.offset || '0', 10);
     const list = await db.getBranchResources(req.params.id, limit, offset);
-    res.json(list);
+    const authed = isRequestAuthed(req);
+    res.json(authed ? list : list.map(stripResourceForGuest));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'DB error' });

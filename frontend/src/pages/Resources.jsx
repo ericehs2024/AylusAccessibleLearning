@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useAdmin } from '../context/AdminContext'
 
 const CATEGORIES = ['all','powerpoints','lesson plans','teaching tips','worksheets','videos','other']
 
@@ -13,7 +14,10 @@ function isImageFile(url, type, name){
 }
 
 export default function Resources(){
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
+  const { isAdminAuthed, adminLogout } = useAdmin()
+  const canView = !!user || isAdminAuthed
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const initialBranch = searchParams.get('branch') || 'all'
   const [q, setQ] = useState('')
@@ -67,20 +71,42 @@ export default function Resources(){
 
   return (
     <div className="container" style={{padding:'28px 20px'}}>
+          
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap'}}>
         <div>
-          <h2 style={{marginBottom:6}}>Resources</h2>
-          <p style={{color:'#5f6368', fontSize:14}}>Search uploaded powerpoints, lesson plans, teaching tips, and more from all branches. Filter by label.</p>
+          <h2 style={{marginBottom:6}}>Resources for branch admins</h2>
         </div>
         {user?.branchId && (
-          <Link to={`/branch/${user.branchId}/admin/resources`} className="btn btn-small">Manage Your Resources</Link>
+          <div style={{display:'flex', gap:8, alignItems:'center'}}>
+            <Link to={`/branch/${user.branchId}/admin/resources`} className="btn btn-small">Manage Your Resources</Link>
+            <button onClick={()=>{ logout(); adminLogout(); }} className="btn btn-small btn-outline">Log Out</button>
+          </div>
+        )}
+        {!user && (
+          <div style={{display:'flex', gap:8, alignItems:'center'}}>
+            <Link to="/login" state={{ from: '/resources' }} className="btn btn-small">Branch Login</Link>
+          </div>
         )}
       </div>
 
+      {!user && (
+        <div className="wire-card" style={{padding:20, marginTop:16, borderTop:'1px solid #e5e5e5'}}>
+          <p style={{color:'#444', fontSize:14, marginBottom:12}}>Log in to view all resources or upload resources for your branch. Uploaded files (powerpoints, pdfs, videos, documents) instantly appear here searchable by titles or descriptions.</p>
+          <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop:12}}>
+            <Link to="/login" state={{ from: '/resources' }} className="btn btn-small">Branch Login</Link>
+            <Link to="/branches" className="btn btn-outline btn-small">All Branches</Link>
+          </div>
+        </div>
+      )}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12, flexWrap:'wrap'}}>
+        <div>
+          <p style={{color:'#5f6368', fontSize:14}}>Search uploaded powerpoints, lesson plans, teaching tips, and more from all branches.</p>
+        </div>
+      </div>
       {/* Search + Filters */}
       <div className="wire-card" style={{padding:16, marginTop:16}}>
         <div style={{display:'flex', gap:12, flexWrap:'wrap'}}>
-          <input className="input" placeholder="Search title, description, file name..." value={q} onChange={e=>setQ(e.target.value)} style={{marginTop:0, flex:'1 1 260px'}} />
+          <input className="input" placeholder="Search title, description..." value={q} onChange={e=>setQ(e.target.value)} style={{marginTop:0, flex:'1 1 260px'}} />
           <select className="select" value={category} onChange={e=>setCategory(e.target.value)} style={{marginTop:0, flex:'0 1 180px'}}>
             {CATEGORIES.map(c=> <option key={c} value={c}>{c === 'all' ? 'All labels' : c}</option>)}
           </select>
@@ -111,15 +137,33 @@ export default function Resources(){
       </div>
 
       {/* Results */}
-      {err && <div style={{background:'#fce8e6', color:'#b3261e', padding:10, border:'3px solid #000', marginTop:12}}>{err}</div>}
+      {err && <div style={{background:'#fce8e6', color:'#b3261e', padding:10, border:'1px solid #e5e5e5', borderTop:'3px solid #dd4444', marginTop:12}}>{err}</div>}
 
-      <div style={{marginTop:16, display:'grid', gap:14}}>
-        {!loading && resources.length===0 && (
-          <div className="wire-card" style={{padding:20, textAlign:'center', color:'#555'}}>
-            No resources found. {user?.branchId ? <><Link to={`/branch/${user.branchId}/admin/resources`} className="wire-link">Upload one</Link> for your branch.</> : <>Try a different search or ask branch admins to upload.</>}
-          </div>
-        )}
-        {resources.map(r=>(
+      <div style={{marginTop:16, display:'grid', gap:14, minHeight:280}}>
+        {loading ? (
+          <>
+            <div className="wire-card" style={{padding:'16px 18px', height:148}}>
+              <div style={{height:16, width:'45%', background:'#eee', borderRadius:4, marginBottom:12}} />
+              <div style={{height:10, width:'65%', background:'#f0f0f0', borderRadius:4}} />
+            </div>
+            <div className="wire-card" style={{padding:'16px 18px', height:148}}>
+              <div style={{height:16, width:'50%', background:'#eee', borderRadius:4, marginBottom:12}} />
+              <div style={{height:10, width:'60%', background:'#f0f0f0', borderRadius:4}} />
+            </div>
+          </>
+        ) : resources.length===0 ? (
+          !canView ? (
+            <div className="wire-card" style={{padding:20, textAlign:'center'}}>
+              <p style={{fontSize:15, fontWeight:700, fontFamily:"'Montserrat', sans-serif", marginBottom:8}}>Please log in you branch to view resources.</p>
+              <Link to="/login" state={{ from: '/resources' }} className="btn btn-small">Branch Login</Link>
+            </div>
+          ) : (
+            <div className="wire-card" style={{padding:20, textAlign:'center', color:'#555'}}>
+              No resources found. {user?.branchId ? <><Link to={`/branch/${user.branchId}/admin/resources`} className="wire-link">Upload one</Link> for your branch.</> : <>Try a different search or ask branch admins to upload.</>}
+            </div>
+          )
+        ) : (
+          resources.map(r=>(
           <div key={r.id} className="wire-card" style={{padding:'16px 18px'}}>
             <div style={{display:'flex', justifyContent:'space-between', gap:10, flexWrap:'wrap', alignItems:'flex-start'}}>
               <h3 style={{margin:0, fontSize:16, lineHeight:1.3}}>{r.title}</h3>
@@ -128,31 +172,38 @@ export default function Resources(){
             <div style={{fontSize:12, color:'#5f6368', margin:'6px 0 10px', display:'flex', gap:12, flexWrap:'wrap'}}>
               <span>Branch: <strong style={{color:'#000'}}>{r.branchName}</strong></span>
               <span>{new Date(r.createdAt).toLocaleDateString()}</span>
-              {r.fileName && <span>File: {r.fileName}</span>}
+              {canView && r.fileName && <span>File: {r.fileName}</span>}
             </div>
-            {r.description ? <p style={{fontSize:14, lineHeight:1.6, whiteSpace:'pre-wrap', marginBottom:10}}>{r.description}</p> : <p style={{fontSize:13, color:'#777', fontStyle:'italic', marginBottom:10}}>No typed description — see file below.</p>}
-            {r.fileUrl && isImageFile(r.fileUrl, r.fileType, r.fileName) ? (
-              <div style={{marginBottom:10}}>
-                <a href={r.fileUrl} target="_blank" rel="noreferrer" title="Click to view full size">
-                  <img src={r.fileUrl} alt={r.fileName || r.title} style={{width:'100%', maxHeight:420, objectFit:'contain', border:'2px solid #000', background:'white', cursor:'zoom-in'}} loading="lazy" />
-                </a>
-                <div style={{display:'flex', gap:8, marginTop:8, flexWrap:'wrap', alignItems:'center'}}>
-                  <span style={{fontSize:11, color:'#5f6368'}}>{r.fileName} — click image to view full size</span>
-                  <a href={r.fileUrl} target="_blank" rel="noreferrer" style={{fontSize:12, textDecoration:'underline', color:'#000', fontWeight:700}}>Open full size</a>
-                  <a href={r.fileUrl} download={r.fileName || ''} style={{fontSize:12, textDecoration:'underline', color:'#000'}}>Download</a>
-                </div>
+            {!canView ? (
+              <div style={{margin:'10px 0', padding:'12px 14px', background:'#fff8f8', border:'1.5px solid #dd4444', borderRadius:4, textAlign:'center'}}>
+                <span style={{fontSize:13, color:'#333', fontFamily:"'Lato', sans-serif"}}>Please log in you branch to view resources.</span>
               </div>
-            ) : r.fileUrl ? (
-              <div style={{marginBottom:10}}>
-                <a href={r.fileUrl} target="_blank" rel="noreferrer" className="wire-nav-item" style={{fontSize:12, padding:'7px 12px'}}>{r.fileName ? `Download — ${r.fileName}` : 'Download file'}</a>
-              </div>
-            ) : null}
-            <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-              {!r.fileUrl && <span style={{fontSize:12, color:'#777', border:'2px solid #000', padding:'6px 10px', background:'white'}}>Typed resource only</span>}
+            ) : (
+              <>
+                {r.description && <p style={{fontSize:14, lineHeight:1.6, whiteSpace:'pre-wrap', marginBottom:10}}>{r.description}</p>}
+                {r.fileUrl && isImageFile(r.fileUrl, r.fileType, r.fileName) ? (
+                  <div style={{marginBottom:10}}>
+                    <a href={r.fileUrl} target="_blank" rel="noreferrer" title="Click to view full size">
+                      <img src={r.fileUrl} alt={r.fileName || r.title} style={{width:'100%', maxHeight:420, objectFit:'contain', border:'1px solid #e5e5e5', background:'white', cursor:'zoom-in'}} loading="lazy" />
+                    </a>
+                    <div style={{display:'flex', gap:8, marginTop:8, flexWrap:'wrap', alignItems:'center'}}>
+                      <span style={{fontSize:11, color:'#5f6368'}}>{r.fileName} — click image to view full size</span>
+                      <a href={r.fileUrl} target="_blank" rel="noreferrer" className="btn btn-small">Open full size</a>
+                      <a href={r.fileUrl} download={r.fileName || ''} className="btn btn-small btn-outline">Download</a>
+                    </div>
+                  </div>
+                ) : r.fileUrl ? (
+                  <div style={{marginBottom:10}}>
+                    <a href={r.fileUrl} target="_blank" rel="noreferrer" className="btn btn-small"> {r.fileName ? `Download — ${r.fileName}` : 'Download file'}</a>
+                  </div>
+                ) : null}
+              </>
+            )}
+            <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop: 8}}>
               <Link to={`/branch/${r.branchId}`} className="btn btn-small btn-outline">View Branch</Link>
             </div>
           </div>
-        ))}
+        )))}
       </div>
 
       {/* Static guides */}
@@ -164,17 +215,6 @@ export default function Resources(){
           <li><a href="https://aylus.org" target="_blank" rel="noreferrer">AYLUS.org</a> — main organization site</li>
         </ul>
       </div>
-
-      {!user && (
-        <div className="wire-card" style={{padding:20}}>
-          <h3 style={{marginBottom:10}}>For Branch Admins</h3>
-          <p style={{color:'#444', fontSize:14, marginBottom:12}}>Log in to upload resources for your branch. Uploaded files (powerpoints, pdfs, videos, documents) instantly appear here searchable by label.</p>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-            <Link to="/login" className="btn btn-small">Branch Login</Link>
-            <Link to="/branches" className="btn btn-outline btn-small">All Branches</Link>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

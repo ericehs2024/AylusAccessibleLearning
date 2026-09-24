@@ -52,3 +52,25 @@ Add 150 branches: `INSERT INTO branches (id,name,username,passwordHash,homeTitle
 - `POST /api/upload` (auth, field `image`), `GET /api/health` (checks MySQL `SELECT 1`)
 
 Auth: `Authorization: Bearer <jwt>`
+
+## Hostinger Manual Deploy (deploy.zip)
+Builds `backend/deploy.zip` (backend + `.env` + `frontend/dist`) for upload via hPanel File Manager:
+
+```powershell
+# from project root - builds frontend, copies to backend/dist, zips to backend/deploy.zip
+.\build-deploy.ps1
+
+# alt: from backend folder
+cd backend
+npm run deploy   # same as above (runs node deploy.js)
+```
+
+Output: `backend/deploy.zip` (~0.14 MB) contains `server.js`, `package.json`, `db.js`, `scraper.js`, `.env` (production), `dist/` — excludes `.env.local`, `node_modules`, `uploads`.
+
+Upload steps:
+1. Hostinger hPanel → **File Manager** → open your Node.js app root (e.g. `domains/yourdomain.com/public_html` or app folder)
+2. Upload `backend/deploy.zip` → **Extract** → confirm files at root (`server.js` at top level)
+3. hPanel → **Advanced → Node.js** → **Deploy** / **Restart**
+4. Ensure `backend/.env` has production `DB_HOST/DB_USER/DB_PASSWORD/DB_NAME` and `JWT_SECRET`; `.env.local` is never deployed.
+
+Zip contents verified: `server.js, package.json, db.js, scraper.js, .env, dist/assets/*, dist/index.html`.

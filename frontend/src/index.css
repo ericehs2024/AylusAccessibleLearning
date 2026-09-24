@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Montserrat:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Montserrat:wght@600;700;800&display=optional');
 
 :root {
   --primary: #dd4444;
@@ -15,9 +15,12 @@
   --shadow-md: none;
 }
 * { box-sizing: border-box; margin:0; padding:0; }
-html { scroll-behavior: smooth; background: #F5F5F5; }
-body { font-family: 'Lato', sans-serif; background: #F5F5F5; color: var(--text); line-height:1.7; min-height:100vh; position:relative; z-index:1; }
+html { scroll-behavior: auto; background: #F5F5F5; scrollbar-gutter: stable both-edges; overflow-y: scroll; }
+body { font-family: 'Lato', sans-serif; background: #F5F5F5; color: var(--text); line-height:1.7; min-height:100vh; position:relative; z-index:1; overflow-anchor: none; }
 #root { position:relative; z-index:1; display:flex; flex-direction:column; min-height:100vh; }
+main { min-height: 60vh; }
+/* prevent font swap jiggle */
+.wire-title, h1, h2, h3, .wire-card-title { font-synthesis: none; text-rendering: optimizeLegibility; }
 a, a:link, a:visited { color: #0E4D7A; text-decoration: none; }
 a:hover, a:active { color: #0000EE; text-decoration: none; }
 .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }

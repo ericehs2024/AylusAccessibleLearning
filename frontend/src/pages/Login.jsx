@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
 import PasswordInput from '../components/PasswordInput'
 
 export default function Login(){
   const [search] = useSearchParams()
+  const location = useLocation()
   const branchParam = search.get('branch') || ''
   const [username, setUsername] = useState(branchParam || '')
   const [password, setPassword] = useState('')
@@ -25,7 +26,9 @@ export default function Login(){
     try{
       const res = await api.post('/api/auth/login', { username, password })
       login(res.data.token, { ...res.data.branch, branchId: res.data.branch.id })
-      nav(`/branch/${res.data.branch.id}`)
+      const from = location.state?.from || search.get('next')
+      if(from) nav(from, { replace: true })
+      else nav(`/branch/${res.data.branch.id}`)
     }catch(ex){
       setErr(ex.response?.data?.error || 'Login failed')
     }finally{ setLoading(false)}

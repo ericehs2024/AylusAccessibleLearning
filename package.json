@@ -1,0 +1,12 @@
+{
+  "name": "aylus-accessible-learning",
+  "private": true,
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "build": "node backend/deploy.js",
+    "deploy": "node backend/deploy.js",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev"
+  }
+}
