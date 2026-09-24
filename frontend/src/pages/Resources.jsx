@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
@@ -6,12 +6,64 @@ import { useAdmin } from '../context/AdminContext'
 
 const CATEGORIES = ['all','powerpoints','lesson plans','teaching tips','worksheets','videos','other']
 
+// stable styles to avoid inline object recreation on every render (prevents badge jiggle)
+const BADGE_CARD_STYLE = {whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, alignSelf:'start', lineHeight:1, boxSizing:'border-box', minHeight:20}
+const HEADER_GRID_STYLE = {display:'grid', gridTemplateColumns:'1fr auto', gap:10, alignItems:'start'}
+
 function isImageFile(url, type, name){
   const t = (type || '').toLowerCase()
   if(t.startsWith('image/')) return true
   const s = (url || name || '').toLowerCase()
   return /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/.test(s)
 }
+
+const CategoryBadge = React.memo(function CategoryBadge({category}){
+  return <span className="badge" style={BADGE_CARD_STYLE}>{category}</span>
+})
+
+const ResourceCard = React.memo(function ResourceCard({r, canView}){
+  return (
+    <div className="wire-card" style={{padding:'16px 18px'}}>
+      <div style={HEADER_GRID_STYLE}>
+        <h3 style={{margin:0, fontSize:16, lineHeight:1.3, minWidth:0, wordBreak:'break-word'}}>{r.title}</h3>
+        <CategoryBadge category={r.category} />
+      </div>
+      <div style={{fontSize:12, color:'#5f6368', margin:'6px 0 10px', display:'flex', gap:12, flexWrap:'wrap'}}>
+        <span>Branch: <strong style={{color:'#000'}}>{r.branchName}</strong></span>
+        <span>{new Date(r.createdAt).toLocaleDateString()}</span>
+        {canView && r.fileName && <span>File: {r.fileName}</span>}
+      </div>
+      {!canView ? (
+        <div style={{margin:'10px 0', padding:'12px 14px', background:'#fff8f8', border:'1.5px solid #dd4444', borderRadius:4, textAlign:'center'}}>
+          <span style={{fontSize:13, color:'#333', fontFamily:"'Lato', sans-serif"}}>Please log in you branch to view resources.</span>
+        </div>
+      ) : (
+        <>
+          {r.description && <p style={{fontSize:14, lineHeight:1.6, whiteSpace:'pre-wrap', marginBottom:10}}>{r.description}</p>}
+          {r.fileUrl && isImageFile(r.fileUrl, r.fileType, r.fileName) ? (
+            <div style={{marginBottom:10}}>
+              <a href={r.fileUrl} target="_blank" rel="noreferrer" title="Click to view full size" style={{display:'block', minHeight:200, background:'#f5f5f5', border:'1px solid #e5e5e5'}}>
+                <img src={r.fileUrl} alt={r.fileName || r.title} width="800" height="450" style={{width:'100%', height:'auto', aspectRatio:'16 / 9', maxHeight:420, minHeight:200, objectFit:'contain', background:'white', cursor:'zoom-in', display:'block'}} loading="lazy" />
+              </a>
+              <div style={{display:'flex', gap:8, marginTop:8, flexWrap:'wrap', alignItems:'center'}}>
+                <span style={{fontSize:11, color:'#5f6368'}}>{r.fileName} — click image to view full size</span>
+                <a href={r.fileUrl} target="_blank" rel="noreferrer" className="btn btn-small">Open full size</a>
+                <a href={r.fileUrl} download={r.fileName || ''} className="btn btn-small btn-outline">Download</a>
+              </div>
+            </div>
+          ) : r.fileUrl ? (
+            <div style={{marginBottom:10}}>
+              <a href={r.fileUrl} target="_blank" rel="noreferrer" className="btn btn-small"> {r.fileName ? `Download — ${r.fileName}` : 'Download file'}</a>
+            </div>
+          ) : null}
+        </>
+      )}
+      <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop: 8}}>
+        <Link to={`/branch/${r.branchId}`} className="btn btn-small btn-outline">View Branch</Link>
+      </div>
+    </div>
+  )
+})
 
 export default function Resources(){
   const { user, logout } = useAuth()
@@ -26,7 +78,9 @@ export default function Resources(){
   const [branches, setBranches] = useState([])
   const [resources, setResources] = useState([])
   const [loading, setLoading] = useState(false)
+  const [hasFetched, setHasFetched] = useState(false)
   const [err, setErr] = useState('')
+  const qFirstRef = useRef(true)
 
   useEffect(()=>{
     api.get('/api/branches').then(r=>setBranches(r.data)).catch(()=>{})
@@ -51,15 +105,20 @@ export default function Resources(){
       if(params.branchId && params.branchId !== 'all') query.set('branchId', params.branchId)
       query.set('limit','100')
       const res = await api.get(`/api/resources?${query.toString()}`)
-      setResources(res.data)
+      setResources(prev => {
+        // avoid re-render if data identical (prevents badge remount jiggle)
+        if(prev.length===res.data.length && JSON.stringify(prev)===JSON.stringify(res.data)) return prev
+        return res.data
+      })
     }catch(e){ setErr(e.response?.data?.error || 'Failed to load resources')}
-    finally{ setLoading(false)}
+    finally{ setLoading(false); setHasFetched(true)}
   }
 
-  // initial load + when category/branch change
+  // initial load + when category/branch change (immediate)
   useEffect(()=>{ fetchResources() },[category, branchId])
-  // debounced search for q
+  // debounced search for q - skip initial mount to avoid double fetch
   useEffect(()=>{
+    if(qFirstRef.current){ qFirstRef.current = false; return }
     const t = setTimeout(()=> fetchResources(), 400)
     return ()=> clearTimeout(t)
   },[q])
@@ -120,7 +179,7 @@ export default function Resources(){
           {CATEGORIES.map(c=>{
             const active = category===c
             return (
-              <button key={c} onClick={()=>setCategory(c)} className="badge" style={{
+              <button key={c} onClick={()=>{ if(category!==c) setCategory(c) }} className="badge" style={{
                 cursor:'pointer',
                 border: `1.5px solid ${active ? '#b51c1c' : '#dd4444'}`,
                 background: active ? '#dd4444' : 'white',
@@ -129,81 +188,48 @@ export default function Resources(){
             )
           })}
           <button className="btn btn-small btn-outline" onClick={clearFilters} style={{marginLeft:8}}>Clear</button>
-          <button className="btn btn-small" onClick={()=>fetchResources()} disabled={loading} style={{marginLeft:'auto'}}>{loading ? 'Searching...' : 'Search'}</button>
         </div>
         <div style={{fontSize:12, color:'#5f6368', marginTop:8}}>
           {loading ? 'Loading...' : `${resources.length} result${resources.length!==1?'s':''} ${q || category!=='all' || branchId!=='all' ? 'for current filters' : ''}`}
         </div>
       </div>
 
-      {/* Results */}
+      {/* Results - stable layout: avoid unmounting height changes on re-render */}
       {err && <div style={{background:'#fce8e6', color:'#b3261e', padding:10, border:'1px solid #e5e5e5', borderTop:'3px solid #dd4444', marginTop:12}}>{err}</div>}
 
-      <div style={{marginTop:16, display:'grid', gap:14, minHeight:280}}>
-        {loading ? (
-          <>
-            <div className="wire-card" style={{padding:'16px 18px', height:148}}>
+      <div style={{marginTop:16, display:'grid', gap:14, minHeight:320, alignContent:'start', contain:'layout', overflowAnchor:'none', position:'relative'}}>
+        {loading && !hasFetched ? (
+          <div style={{display:'grid', gap:14}}>
+            <div className="wire-card" style={{padding:'16px 18px', height:148, marginBottom:0}}>
               <div style={{height:16, width:'45%', background:'#eee', borderRadius:4, marginBottom:12}} />
               <div style={{height:10, width:'65%', background:'#f0f0f0', borderRadius:4}} />
+              <div style={{height:80, background:'#f5f5f5', borderRadius:4, marginTop:12, border:'1px solid #eee'}} />
             </div>
-            <div className="wire-card" style={{padding:'16px 18px', height:148}}>
+            <div className="wire-card" style={{padding:'16px 18px', height:148, marginBottom:0}}>
               <div style={{height:16, width:'50%', background:'#eee', borderRadius:4, marginBottom:12}} />
               <div style={{height:10, width:'60%', background:'#f0f0f0', borderRadius:4}} />
+              <div style={{height:80, background:'#f5f5f5', borderRadius:4, marginTop:12, border:'1px solid #eee'}} />
             </div>
-          </>
+          </div>
         ) : resources.length===0 ? (
           !canView ? (
-            <div className="wire-card" style={{padding:20, textAlign:'center'}}>
+            <div className="wire-card" style={{padding:24, textAlign:'center', minHeight:310, height:310, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', marginBottom:0, boxSizing:'border-box'}}>
               <p style={{fontSize:15, fontWeight:700, fontFamily:"'Montserrat', sans-serif", marginBottom:8}}>Please log in you branch to view resources.</p>
               <Link to="/login" state={{ from: '/resources' }} className="btn btn-small">Branch Login</Link>
             </div>
           ) : (
-            <div className="wire-card" style={{padding:20, textAlign:'center', color:'#555'}}>
-              No resources found. {user?.branchId ? <><Link to={`/branch/${user.branchId}/admin/resources`} className="wire-link">Upload one</Link> for your branch.</> : <>Try a different search or ask branch admins to upload.</>}
+            <div className="wire-card" style={{padding:24, textAlign:'center', color:'#555', minHeight:310, height:310, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', marginBottom:0, boxSizing:'border-box'}}>
+              <span>No resources found. {user?.branchId ? <><Link to={`/branch/${user.branchId}/admin/resources`} className="wire-link">Upload one</Link> for your branch.</> : <>Try a different search or ask branch admins to upload.</>}</span>
             </div>
           )
         ) : (
-          resources.map(r=>(
-          <div key={r.id} className="wire-card" style={{padding:'16px 18px'}}>
-            <div style={{display:'flex', justifyContent:'space-between', gap:10, flexWrap:'wrap', alignItems:'flex-start'}}>
-              <h3 style={{margin:0, fontSize:16, lineHeight:1.3}}>{r.title}</h3>
-              <span className="badge" style={{whiteSpace:'nowrap'}}>{r.category}</span>
-            </div>
-            <div style={{fontSize:12, color:'#5f6368', margin:'6px 0 10px', display:'flex', gap:12, flexWrap:'wrap'}}>
-              <span>Branch: <strong style={{color:'#000'}}>{r.branchName}</strong></span>
-              <span>{new Date(r.createdAt).toLocaleDateString()}</span>
-              {canView && r.fileName && <span>File: {r.fileName}</span>}
-            </div>
-            {!canView ? (
-              <div style={{margin:'10px 0', padding:'12px 14px', background:'#fff8f8', border:'1.5px solid #dd4444', borderRadius:4, textAlign:'center'}}>
-                <span style={{fontSize:13, color:'#333', fontFamily:"'Lato', sans-serif"}}>Please log in you branch to view resources.</span>
-              </div>
-            ) : (
-              <>
-                {r.description && <p style={{fontSize:14, lineHeight:1.6, whiteSpace:'pre-wrap', marginBottom:10}}>{r.description}</p>}
-                {r.fileUrl && isImageFile(r.fileUrl, r.fileType, r.fileName) ? (
-                  <div style={{marginBottom:10}}>
-                    <a href={r.fileUrl} target="_blank" rel="noreferrer" title="Click to view full size">
-                      <img src={r.fileUrl} alt={r.fileName || r.title} style={{width:'100%', maxHeight:420, objectFit:'contain', border:'1px solid #e5e5e5', background:'white', cursor:'zoom-in'}} loading="lazy" />
-                    </a>
-                    <div style={{display:'flex', gap:8, marginTop:8, flexWrap:'wrap', alignItems:'center'}}>
-                      <span style={{fontSize:11, color:'#5f6368'}}>{r.fileName} — click image to view full size</span>
-                      <a href={r.fileUrl} target="_blank" rel="noreferrer" className="btn btn-small">Open full size</a>
-                      <a href={r.fileUrl} download={r.fileName || ''} className="btn btn-small btn-outline">Download</a>
-                    </div>
-                  </div>
-                ) : r.fileUrl ? (
-                  <div style={{marginBottom:10}}>
-                    <a href={r.fileUrl} target="_blank" rel="noreferrer" className="btn btn-small"> {r.fileName ? `Download — ${r.fileName}` : 'Download file'}</a>
-                  </div>
-                ) : null}
-              </>
-            )}
-            <div style={{display:'flex', gap:8, flexWrap:'wrap', marginTop: 8}}>
-              <Link to={`/branch/${r.branchId}`} className="btn btn-small btn-outline">View Branch</Link>
-            </div>
+          <div style={{display:'grid', gap:14}}>
+          {resources.map(r=>(
+            <ResourceCard key={r.id} r={r} canView={canView} />
+        ))}
           </div>
-        )))}
+        )}
+        {loading && hasFetched && <div style={{position:'absolute', top:8, right:8, fontSize:11, fontWeight:700, background:'#fff', border:'1px solid #e5e5e5', padding:'4px 8px', borderRadius:999, boxShadow:'0 1px 4px rgba(0,0,0,0.08)'}}>Loading…</div>}
       </div>
 
       {/* Static guides */}

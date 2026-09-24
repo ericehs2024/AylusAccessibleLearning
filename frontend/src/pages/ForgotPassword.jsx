@@ -99,36 +99,36 @@ export default function ForgotPassword(){
       {msg && <div style={{background:'#e6f4ea', color:'#137333', padding:10, borderRadius:8, marginBottom:12, fontSize:14}}>{msg}</div>}
 
       {step===1 && (
-        <form onSubmit={requestCode} className="card">
-          <label className="label">Branch Username</label>
-          <input className="input" value={username} onChange={e=>setUsername(e.target.value)} placeholder="e.g. branch1" required />
-          <label className="label" style={{marginTop:12, display:'block'}}>Email</label>
-          <input className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin@branch.org" required />
-          <label className="label" style={{marginTop:12, display:'block'}}>Confirm Email</label>
-          <input className="input" type="email" value={confirmEmail} onChange={e=>setConfirmEmail(e.target.value)} placeholder="re-enter email" required />
+        <form onSubmit={requestCode} className="card" style={{display:'block'}}>
+          <label className="label" htmlFor="fp-username">Branch Username</label>
+          <input id="fp-username" className="input" value={username} onChange={e=>setUsername(e.target.value)} placeholder="e.g. branch1" required autoComplete="username" aria-label="Branch username" />
+          <label className="label" htmlFor="fp-email" style={{marginTop:12, display:'block'}}>Email</label>
+          <input id="fp-email" className="input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="admin@branch.org" required autoComplete="email" aria-label="Email address" />
+          <label className="label" htmlFor="fp-confirm-email" style={{marginTop:12, display:'block'}}>Confirm Email</label>
+          <input id="fp-confirm-email" className="input" type="email" value={confirmEmail} onChange={e=>setConfirmEmail(e.target.value)} placeholder="re-enter email" required autoComplete="email" aria-label="Confirm email address" />
           <p style={{fontSize:12, color:'#5f6368', marginTop:8}}>Code will be sent to this address. Both emails must match.</p>
-          <button className="btn" style={{marginTop:14, width:'100%'}} disabled={loading}>{loading ? 'Sending...' : 'Send Verification Code'}</button>
+          <button type="submit" className="btn" aria-label="Send verification code" style={{marginTop:14, width:'100%', display:'flex', justifyContent:'center', whiteSpace:'nowrap'}} disabled={loading}>{loading ? 'Sending...' : 'Send Verification Code'}</button>
           <Link to="/login" style={{display:'block', textAlign:'center', marginTop:12, fontSize:13}}>Back to Login</Link>
         </form>
       )}
 
       {step===2 && (
-        <form onSubmit={verifyCode} className="card">
+        <form onSubmit={verifyCode} className="card" style={{display:'block'}}>
           <p style={{fontSize:14, marginBottom:8}}>Code sent to <b>{email}</b> for <b>{username}</b> — expires in <b style={{color: remaining<60 ? '#d93025':'#1a73e8'}}>{mmss}</b></p>
-          <div style={{height:6, background:'#e8eaed', borderRadius:999, overflow:'hidden', marginBottom:12}}>
+          <div style={{height:6, background:'#e8eaed', borderRadius:999, overflow:'hidden', marginBottom:12}} role="progressbar" aria-valuenow={remaining} aria-valuemin={0} aria-valuemax={300}>
             <div style={{width: `${(remaining/300)*100}%`, height:'100%', background: remaining<60 ? '#d93025' : '#1a73e8', transition:'width 1s linear'}} />
           </div>
-          <label className="label">Verification Code (6 digits)</label>
-          <input className="input" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="123456" required style={{letterSpacing:4, fontSize:18, textAlign:'center'}} />
+          <label className="label" htmlFor="fp-code">Verification Code (6 digits)</label>
+          <input id="fp-code" className="input" value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="123456" required style={{letterSpacing:4, fontSize:18, textAlign:'center'}} inputMode="numeric" pattern="\d{6}" maxLength={6} autoComplete="one-time-code" aria-label="6 digit verification code" />
           <p style={{fontSize:12, color:'#5f6368', marginTop:8}}>Wait for email. Check spam folder. Code expires after 5 mins.</p>
-          <button className="btn" style={{marginTop:14, width:'100%'}} disabled={loading || remaining===0}>{loading ? 'Verifying...' : 'Verify Code'}</button>
-          <button type="button" className="btn btn-outline" style={{marginTop:8, width:'100%'}} onClick={()=>{setStep(1); setExpiresAt(null)}}>Back / Resend</button>
+          <button type="submit" className="btn" aria-label="Verify code" style={{marginTop:14, width:'100%', display:'flex', justifyContent:'center', whiteSpace:'nowrap'}} disabled={loading || remaining===0}>{loading ? 'Verifying...' : 'Verify Code'}</button>
+          <button type="button" className="btn btn-outline" aria-label="Back to email entry" style={{marginTop:8, width:'100%', display:'flex', justifyContent:'center'}} onClick={()=>{setStep(1); setExpiresAt(null)}}>Back / Resend</button>
         </form>
       )}
 
       {step===3 && (
-        <form onSubmit={resetPassword} className="card">
-          <label className="label">New Password</label>
+        <form onSubmit={resetPassword} className="card" style={{display:'block'}}>
+          <label className="label" htmlFor="fp-new-password">New Password</label>
           <PasswordInput value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="New password" required />
           <div style={{background:'#fef7e0', border:'1px solid #fbbc04', borderRadius:8, padding:'10px 12px', marginTop:8, fontSize:12, lineHeight:1.5}}>
             <b>Hint:</b> Minimum 8 chars, at least <b>2 digits</b> and <b>one uppercase</b>.<br/>
@@ -139,9 +139,9 @@ export default function ForgotPassword(){
               <span style={{color: /[A-Z]/.test(newPassword) ? '#137333':'#5f6368'}}>• Uppercase {/[A-Z]/.test(newPassword) ? '✓':'✗'}</span>
             </div>
           </div>
-          <label className="label" style={{marginTop:12, display:'block'}}>Confirm New Password</label>
+          <label className="label" style={{marginTop:12, display:'block'}} htmlFor="fp-confirm-password">Confirm New Password</label>
           <PasswordInput value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter new password" required />
-          <button className="btn" style={{marginTop:14, width:'100%'}} disabled={loading}>{loading ? 'Saving...' : 'Reset Password'}</button>
+          <button type="submit" className="btn" aria-label="Reset password" style={{marginTop:14, width:'100%', display:'flex', justifyContent:'center', whiteSpace:'nowrap'}} disabled={loading}>{loading ? 'Saving...' : 'Reset Password'}</button>
         </form>
       )}
     </div>

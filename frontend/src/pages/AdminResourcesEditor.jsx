@@ -238,9 +238,9 @@ export default function AdminResourcesEditor(){
               </>
             ) : (
               <>
-                <div style={{display:'flex', justifyContent:'space-between', gap:10, flexWrap:'wrap'}}>
-                  <h3 style={{margin:0}}>{r.title}</h3>
-                  <span className="badge" style={{background:'#000'}}>{r.category}</span>
+                <div style={{display:'grid', gridTemplateColumns:'1fr auto', gap:10, alignItems:'start'}}>
+                  <h3 style={{margin:0, minWidth:0, wordBreak:'break-word'}}>{r.title}</h3>
+                  <span className="badge" style={{background:'#000', whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, alignSelf:'start', contain:'layout', transform:'translateZ(0)', lineHeight:1, boxSizing:'border-box', minHeight:20}}>{r.category}</span>
                 </div>
                 <div style={{fontSize:12, color:'#5f6368', margin:'6px 0 8px'}}>{new Date(r.createdAt).toLocaleString()} · {r.branchName}</div>
                 {r.description && <p style={{fontSize:14, lineHeight:1.6, whiteSpace:'pre-wrap', marginBottom:8}}>{r.description}</p>}
