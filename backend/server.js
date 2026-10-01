@@ -464,10 +464,10 @@ app.delete('/api/posts/:postId/comments/:commentId', auth, async (req, res) => {
   }
 });
 
-// POST create post (wireframe fields: requiredAges, location, signUpLink, extraDescription, date)
+// POST create post (wireframe fields: requiredAges, location, signUpLink, volunteersNeeded, volunteerStatus, extraDescription, date)
 app.post('/api/branches/:id/posts', auth, requireBranchOwner, async (req, res) => {
   try {
-    const { title, sections, requiredAges, location, signUpLink, extraDescription, date } = req.body;
+    const { title, sections, requiredAges, location, signUpLink, volunteersNeeded, volunteerStatus, extraDescription, date } = req.body;
     if (!title || !Array.isArray(sections)) return res.status(400).json({ error: 'title and sections required' });
     const newPost = await db.createPost({
       id: 'post-' + Date.now() + '-' + Math.round(Math.random()*1000),
@@ -477,6 +477,8 @@ app.post('/api/branches/:id/posts', auth, requireBranchOwner, async (req, res) =
       requiredAges,
       location,
       signUpLink,
+      volunteersNeeded,
+      volunteerStatus,
       extraDescription,
       date
     });
@@ -490,8 +492,8 @@ app.post('/api/branches/:id/posts', auth, requireBranchOwner, async (req, res) =
 // PUT update post
 app.put('/api/branches/:id/posts/:postId', auth, requireBranchOwner, async (req, res) => {
   try {
-    const { title, sections, requiredAges, location, signUpLink, extraDescription, date } = req.body;
-    const updated = await db.updatePost(req.params.id, req.params.postId, { title, sections, requiredAges, location, signUpLink, extraDescription, date });
+    const { title, sections, requiredAges, location, signUpLink, volunteersNeeded, volunteerStatus, extraDescription, date } = req.body;
+    const updated = await db.updatePost(req.params.id, req.params.postId, { title, sections, requiredAges, location, signUpLink, volunteersNeeded, volunteerStatus, extraDescription, date });
     if (!updated) return res.status(404).json({ error: 'Post not found' });
     res.json(updated);
   } catch (e) {
@@ -660,8 +662,67 @@ app.get('/api/admin/branches', adminAuth, async (req, res) => {
     const branches = await db.getBranches();
     // return full list for admin panel (without passwordHash)
     const detailed = await Promise.all(branches.map(b => db.getBranchById(b.id)));
-    const safe = detailed.filter(Boolean).map(b => ({ id: b.id, name: b.name, username: b.username, email: b.email }));
+    const safe = detailed.filter(Boolean).map(b => ({ id: b.id, name: b.name, username: b.username, email: b.email, featured: !!b.featured }));
     res.json(safe);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// Hour Compiler run logs for review (newest first, paginated)
+app.get('/api/admin/scrape-logs', adminAuth, async (req, res) => {
+  try {
+    const logs = await db.getScrapeLogs(req.query.limit || 100, req.query.offset || 0);
+    res.json(logs);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// --- site analytics (public beacon + admin summary) ---
+// POST /api/analytics/track { eventType: pageview|branch_login|branch_password_change|admin_login, path?, branchId?, meta? }
+app.post('/api/analytics/track', async (req, res) => {
+  try {
+    const { eventType, path, branchId, meta } = req.body || {};
+    if (!db.ANALYTICS_EVENT_TYPES.includes(eventType)) {
+      return res.status(400).json({ error: 'Invalid eventType' });
+    }
+    // prefer branchId from a valid branch JWT over client-supplied value
+    let resolvedBranchId = branchId || null;
+    const header = req.headers.authorization;
+    if (header) {
+      try {
+        const payload = jwt.verify(header.split(' ')[1], JWT_SECRET);
+        if (payload.branchId) resolvedBranchId = payload.branchId;
+      } catch { /* anonymous or admin token — keep client value */ }
+    }
+    db.logAnalyticsEvent({ eventType, branchId: resolvedBranchId, path, meta });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// Aggregated stats for the admin dashboard: daily pageviews / password changes /
+// admin logins, most active branches, most used pages
+app.get('/api/admin/analytics', adminAuth, async (req, res) => {
+  try {
+    res.json(await db.getAnalyticsSummary(req.query.days || 30));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+// Mark/unmark a branch as featured (spotlight section on the Branches tab)
+app.put('/api/admin/branches/:id/featured', adminAuth, async (req, res) => {
+  try {
+    const ok = await db.setBranchFeatured(req.params.id, !!req.body.featured);
+    if (!ok) return res.status(404).json({ error: 'Branch not found' });
+    res.json({ ok: true, featured: !!req.body.featured });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'DB error' });

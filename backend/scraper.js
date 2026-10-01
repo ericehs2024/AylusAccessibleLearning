@@ -5,6 +5,7 @@ const cheerio = require('cheerio');
 const http = require('http');
 const https = require('https');
 const axios = require('axios');
+const db = require('./db');
 
 const keepAliveAgent = new https.Agent({ keepAlive: true, maxSockets: 20, keepAliveMsecs: 1000 });
 axios.defaults.httpAgent = new http.Agent({ keepAlive: true, maxSockets: 20, keepAliveMsecs: 1000 });
@@ -165,6 +166,38 @@ async function throttleGemini(promptTokens = 0) {
   } finally { release(); }
 }
 
+// Retry hints from Google APIs: RetryInfo.retryDelay ("38s") in a 429/503 JSON
+// body, or the Retry-After response header. Returns whole seconds or null.
+function parseRetryAfterSec(bodyText, headers) {
+  try {
+    const ra = headers && typeof headers.get === 'function' ? headers.get('retry-after') : null;
+    if (ra) {
+      const secs = parseInt(String(ra).trim(), 10);
+      if (Number.isFinite(secs) && secs >= 0) return secs;
+      const when = Date.parse(ra);
+      if (!Number.isNaN(when)) return Math.max(0, Math.ceil((when - Date.now()) / 1000));
+    }
+  } catch {}
+  try {
+    const details = JSON.parse(bodyText || '')?.error?.details;
+    if (Array.isArray(details)) {
+      for (const d of details) {
+        const m = String(d?.retryDelay || '').trim().match(/^(\d+(?:\.\d+)?)s$/);
+        if (m) return Math.max(0, Math.ceil(parseFloat(m[1])));
+      }
+    }
+  } catch {}
+  return null;
+}
+
+// Attach the server-asked wait to an error so it survives re-wrapping up the chain.
+function withRetryAfterSec(err, secs) {
+  if (err && Number.isFinite(secs) && secs >= 0) {
+    if (!Number.isFinite(err.retryAfterSec) || secs > err.retryAfterSec) err.retryAfterSec = secs;
+  }
+  return err;
+}
+
 async function geminiCallWithRetry(prompt, pageUrl = '') {
   const apiKey = process.env.GEMINI_API_KEY;
   const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
@@ -174,6 +207,7 @@ async function geminiCallWithRetry(prompt, pageUrl = '') {
   if (prompt.length > GEMINI_PROMPT_MAX_CHARS) throw new Error(`Prompt too large (${prompt.length} chars, max ${GEMINI_PROMPT_MAX_CHARS}); narrow the date range and retry`);
   ensureGeminiDailyQuota();
   const estTokens = Math.ceil(prompt.length / 3);
+  let lastRetryAfterSec = null; // server-asked wait from 429/503 (RetryInfo.retryDelay / Retry-After header)
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       await throttleGemini(estTokens);
@@ -195,9 +229,13 @@ async function geminiCallWithRetry(prompt, pageUrl = '') {
       } finally { clearTimeout(timeout); }
       if (!response.ok) {
         if (response.status === 429 || response.status === 503) {
-          console.log(`[gemini] Rate limited on attempt ${attempt + 1}, waiting 60s...`);
+          let bodyText = '';
+          try { bodyText = await response.text(); } catch {}
+          const asked = parseRetryAfterSec(bodyText, response.headers);
+          if (asked !== null) lastRetryAfterSec = lastRetryAfterSec === null ? asked : Math.max(lastRetryAfterSec, asked);
+          console.log(`[gemini] Rate limited on attempt ${attempt + 1}${lastRetryAfterSec !== null ? ` (server asked retry after ${lastRetryAfterSec}s)` : ''}, waiting 60s...`);
           if (attempt < maxRetries - 1) { await sleep(60000); continue; }
-          throw new Error(`Rate limit exceeded after ${maxRetries} attempts`);
+          throw withRetryAfterSec(new Error(`Rate limit exceeded after ${maxRetries} attempts`), lastRetryAfterSec);
         }
         const body = (await response.text()).slice(0, 500);
         throw new Error(`API error: ${response.status} ${body}`);
@@ -217,6 +255,7 @@ async function geminiCallWithRetry(prompt, pageUrl = '') {
       return candidate?.text || '';
     } catch (error) {
       if (error.name === 'AbortError') throw new Error(`Gemini request timed out after ${GEMINI_TIMEOUT_MS / 1000}s; the date range may be too large, please narrow it and retry`);
+      withRetryAfterSec(error, lastRetryAfterSec);
       console.error(`[gemini] Call failed (attempt ${attempt + 1}): ${error.message}`);
       if (attempt < maxRetries - 1) {
         const isRateLimit = error.message.includes('429') || error.message.includes('503');
@@ -393,10 +432,12 @@ async function extractVolunteersBatched(activityTexts, startDate = null, endDate
         batchResults[idx] = parsed;
       } catch (error) {
         console.error(`[gemini-vol] batch ${idx+1} failed: ${error.message}`);
-        if (error.message.includes('Server busy') || error.message.includes('Gemini error, please retry later')) batchError = error;
-        else if (error.message.includes('Rate limit') || error.message.includes('429') || error.message.includes('503')) batchError = new Error('Gemini error, please retry later: rate limited');
-        else if (error.message.includes('too large') || error.message.includes('timed out')) batchError = new Error('Gemini error, please retry later: response too large or timed out');
-        else batchError = new Error(`Gemini error, please retry later: ${error.message}`);
+        const retryAfterSec = Number.isFinite(error.retryAfterSec) ? error.retryAfterSec : null;
+        const keep = (e) => withRetryAfterSec(e, retryAfterSec);
+        if (error.message.includes('Server busy') || error.message.includes('Gemini error, please retry later')) batchError = keep(error);
+        else if (error.message.includes('Rate limit') || error.message.includes('429') || error.message.includes('503')) batchError = keep(new Error('Gemini error, please retry later: rate limited'));
+        else if (error.message.includes('too large') || error.message.includes('timed out')) batchError = keep(new Error('Gemini error, please retry later: response too large or timed out'));
+        else batchError = keep(new Error(`Gemini error, please retry later: ${error.message}`));
       }
     }
   }
@@ -412,18 +453,31 @@ function registerScraperRoutes(app) {
   app.post('/api/scrape', async (req, res) => {
     const { url, startDate, endDate, aliases } = req.body;
     if (!url) return res.status(400).json({ error: 'URL is required' });
+    const startTime = Date.now();
+    // Fire-and-forget run log (never blocks/fails the response; helper catches its own errors)
+    const logRun = (status, reason, activityCount, recordCount, sDate, eDate) => {
+      db.logScrapeRun({
+        branchUrl: url,
+        status,
+        reason,
+        elapsedSeconds: Math.round(((Date.now() - startTime) / 1000) * 10) / 10,
+        startDate: sDate !== undefined ? sDate : effStart,
+        endDate: eDate !== undefined ? eDate : effEnd,
+        activityCount: activityCount || 0,
+        recordCount: recordCount || 0,
+      });
+    };
     const normStart = startDate ? normalizeDateStr(String(startDate).trim()) : null;
     const normEnd = endDate ? normalizeDateStr(String(endDate).trim()) : null;
-    if (startDate && !normStart) return res.status(400).json({ error: `Invalid startDate: ${startDate} (expected YYYY-MM-DD)` });
-    if (endDate && !normEnd) return res.status(400).json({ error: `Invalid endDate: ${endDate} (expected YYYY-MM-DD)` });
-    if (normStart && normEnd && normStart > normEnd) return res.status(400).json({ error: 'Start date cannot be after end date' });
+    if (startDate && !normStart) { logRun('failure', `Invalid startDate: ${startDate} (expected YYYY-MM-DD)`, 0, 0, startDate, endDate); return res.status(400).json({ error: `Invalid startDate: ${startDate} (expected YYYY-MM-DD)` }); }
+    if (endDate && !normEnd) { logRun('failure', `Invalid endDate: ${endDate} (expected YYYY-MM-DD)`, 0, 0, startDate, endDate); return res.status(400).json({ error: `Invalid endDate: ${endDate} (expected YYYY-MM-DD)` }); }
+    if (normStart && normEnd && normStart > normEnd) { logRun('failure', 'Start date cannot be after end date', 0, 0, startDate, endDate); return res.status(400).json({ error: 'Start date cannot be after end date' }); }
     if (normStart && normEnd) {
       const diffDays = (new Date(normEnd) - new Date(normStart)) / (1000*60*60*24);
-      if (diffDays > 365) return res.status(400).json({ error: 'Date range cannot exceed 365 days' });
+      if (diffDays > 365) { logRun('failure', 'Date range cannot exceed 365 days', 0, 0, startDate, endDate); return res.status(400).json({ error: 'Date range cannot exceed 365 days' }); }
     }
     const effStart = normStart || startDate || null;
     const effEnd = normEnd || endDate || null;
-    const startTime = Date.now();
     console.log('=== Scrape Request ===');
     console.log(`[request] URL: ${url}`);
     console.log(`[request] startDate: ${effStart} endDate: ${effEnd}`);
@@ -431,13 +485,14 @@ function registerScraperRoutes(app) {
     try {
       console.log('[timing] Fetching main page...');
       const mainHtml = await fetchHtml(url);
-      if (!mainHtml) return res.status(502).json({ error: 'Failed to fetch the branch page' });
+      if (!mainHtml) { logRun('failure', 'FETCH_FAILED: branch page fetch returned empty', 0, 0); return res.status(502).json({ error: 'Failed in fetching original activity posts. Please retry.', code: 'FETCH_FAILED' }); }
       const $ = cheerio.load(mainHtml);
       const allLinks = extractAllLinks($);
       console.log(`[timing] Main page fetched: ${Date.now() - startTime}ms`);
       let rawLinks = extractActivityLinks(allLinks, url);
       if (rawLinks.length === 0) {
         console.log('[scrape] No entry found');
+        logRun('success', 'ok: no activity found', 0, 0);
         return res.json({ success: true, data: [], message: 'no activity found' });
       }
       if (effStart || effEnd) {
@@ -445,7 +500,7 @@ function registerScraperRoutes(app) {
         const filtered = await filterLinksByGeminiDate(rawLinks, effStart, effEnd);
         console.log(`[date-filter] URL classifier result: ${before} → ${filtered.length}`);
         rawLinks = filtered;
-        if (rawLinks.length === 0) return res.json({ success: true, data: [] });
+        if (rawLinks.length === 0) { logRun('success', 'ok: no activity in range', 0, 0); return res.json({ success: true, data: [] }); }
       }
       console.log(`[scrape] === Fetching ${rawLinks.length} activity pages (15 concurrent) ===`);
       const pageResults = await mapLimit(rawLinks, 15, async (link) => {
@@ -462,13 +517,29 @@ function registerScraperRoutes(app) {
       const allVolunteers = await extractVolunteersBatched(activityTexts, effStart, effEnd, aliases);
       console.log(`[timing] Volunteer extraction done: ${Date.now() - startTime}ms`);
       console.log(`[scrape] Total volunteer records: ${allVolunteers.length}`);
+      logRun('success', 'ok', activityTexts.length, allVolunteers.length);
       res.json({ success: true, data: allVolunteers });
     } catch (error) {
-      console.error('Scraping error:', error.message);
-      const isRateLimit = error.message.includes('Rate limit') || error.message.includes('429') || error.message.includes('503') || error.message.includes('too many') || error.message.includes('Gemini API error');
+      console.error('Scraping error:', error.message, error.retryAfterSec != null ? `(server asked retry after ${error.retryAfterSec}s)` : '');
       if (res.headersSent) return;
-      if (isRateLimit) res.status(503).json({ error: 'Server busy, please wait a few minutes' });
-      else res.status(500).json({ error: 'Failed to scrape the website: ' + error.message });
+      const msg = error.message || '';
+      // Actionable input errors keep their message (tell user to narrow range)
+      const isInputTooLarge = msg.includes('too large') || msg.includes('timed out');
+      if (isInputTooLarge) { logRun('failure', `AI_INPUT_TOO_LARGE: ${msg}`); return res.status(500).json({ error: msg, code: 'AI_INPUT_TOO_LARGE' }); }
+      // Daily quota is exhausted until tomorrow, not minutes — say so explicitly
+      if (/daily|tomorrow/i.test(msg)) { logRun('failure', `AI_BUSY daily quota: ${msg}`); return res.status(503).json({ error: 'AI usage limit reached for today, please retry tomorrow.', code: 'AI_BUSY' }); }
+      // Gemini / rate-limit signals -> friendly AI-busy message (details stay in server console only)
+      const isRateLimit = /429|503|rate limit|server busy|quota|too many|gemini/i.test(msg);
+      if (isRateLimit) {
+        const serverAskedSec = Number.isFinite(error.retryAfterSec) ? error.retryAfterSec : 0;
+        const retryInSec = serverAskedSec + 5 * 60; // server interval + 5 min buffer
+        const retryMin = Math.max(1, Math.ceil(retryInSec / 60));
+        logRun('failure', `AI_BUSY rate limited: ${msg}`);
+        return res.status(503).json({ error: `AI is busy, please retry after ${retryMin} minutes.`, code: 'AI_BUSY', retryAfterSec: serverAskedSec, retryInSec });
+      }
+      // All other scraping failures -> friendly fetch message (raw detail stays in server console only)
+      logRun('failure', `FETCH_FAILED: ${msg}`);
+      return res.status(500).json({ error: 'Failed in fetching original activity posts. Please retry.', code: 'FETCH_FAILED' });
     }
   });
 

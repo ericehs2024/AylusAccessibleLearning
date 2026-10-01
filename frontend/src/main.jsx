@@ -6,6 +6,9 @@ import './index.css'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { AdminProvider } from './context/AdminContext.jsx'
 import { ToastProvider } from './components/Toast.jsx'
+import { initClarity } from './utils/clarity.js'
+
+initClarity()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

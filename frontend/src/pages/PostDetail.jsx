@@ -4,6 +4,7 @@ import api from '../api'
 import SectionView from '../components/SectionView'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
+import { formatDate, formatDateTime } from '../utils/date'
 
 export default function PostDetail(){
   const params = useParams()
@@ -22,8 +23,8 @@ export default function PostDetail(){
   useEffect(()=>{
     if(!postId) return
     setLoading(true)
-    api.get(`/api/posts/${postId}`).then(r=>setPost(r.data)).catch(e=>setErr(e.response?.data?.error||'Not found')).finally(()=>setLoading(false))
-    api.get(`/api/posts/${postId}/comments`).then(r=>setComments(r.data)).catch(()=>{})
+    api.get(`/api/posts/${postId}`).then(r=>setPost(r.data)).catch(e=>{ console.error(`[PostDetail] GET /api/posts/${postId} failed`, e.response?.data || e.message); setErr(e.response?.data?.error||'Not found') }).finally(()=>setLoading(false))
+    api.get(`/api/posts/${postId}/comments`).then(r=>setComments(r.data)).catch(e=>console.error(`[PostDetail] GET /api/posts/${postId}/comments failed`, e.response?.data || e.message))
   },[postId])
 
   const submitComment = async (e)=>{
@@ -39,6 +40,7 @@ export default function PostDetail(){
       setText('')
       toast('Comment posted','success')
     }catch(ex){
+      console.error(`[PostDetail] POST /api/posts/${postId}/comments failed`, ex.response?.data || ex.message)
       toast(ex.response?.data?.error||'Failed to post','error')
     }finally{ setSubmitting(false)}
   }
@@ -51,6 +53,7 @@ export default function PostDetail(){
       setComments(prev=>prev.filter(c=>c.id!==cid))
       toast('Comment deleted','success')
     }catch(ex){
+      console.error(`[PostDetail] DELETE /api/posts/${post?.id}/comments/${cid} failed`, ex.response?.data || ex.message)
       toast(ex.response?.data?.error||'Delete failed','error')
     }
   }
@@ -59,8 +62,8 @@ export default function PostDetail(){
   if(err) return <div className="container" style={{padding:40}}>{err} <Link to="/" className="wire-nav-item" style={{marginLeft:8}}>HOME</Link></div>
   if(!post) return <div className="container" style={{padding:40}}>Post not found</div>
 
-  const dateOnly = post.date ? new Date(post.date).toLocaleDateString() : 'Date TBD'
-  const dateFull = post.date ? new Date(post.date).toLocaleString() : ''
+  const dateOnly = formatDate(post.date)
+  const dateFull = formatDateTime(post.date)
   const isOwner = user && user.branchId === post.branchId
 
   return (
@@ -77,6 +80,8 @@ export default function PostDetail(){
           <div className="wire-field"><span className="wire-label">BRANCH</span><span className="wire-meta-branch" style={{marginBottom:0}}>{post.branchName}</span></div>
           <div className="wire-field"><span className="wire-label">DATE</span><span>{dateOnly}</span></div>
           <div className="wire-field"><span className="wire-label">AGE GROUP</span><span>{post.requiredAges || 'All ages'}</span></div>
+          <div className="wire-field"><span className="wire-label">VOLUNTEERS NEEDED</span><span>{post.volunteersNeeded != null ? `${post.volunteersNeeded} volunteer${Number(post.volunteersNeeded) === 1 ? '' : 's'}` : 'Not specified'}</span></div>
+          <div className="wire-field"><span className="wire-label">VOLUNTEER STATUS</span><span>{post.volunteerStatus === 'closed' ? 'Closed — position filled' : post.volunteerStatus === 'open' ? 'Open' : '—'}</span></div>
         </div>
         <div className="comment-time" style={{fontSize:11, marginBottom:10}}>{dateFull}</div>
         <div className="wire-field"><span className="wire-label">Location</span><span>{post.location || 'TBD'}</span></div>
@@ -108,7 +113,7 @@ export default function PostDetail(){
               <div key={c.id} className="comment-card">
                 <div style={{display:'flex', justifyContent:'space-between', gap:8, alignItems:'center'}}>
                   <strong className="comment-author">{c.authorName}</strong>
-                  <span className="comment-time">{new Date(c.createdAt).toLocaleString()}</span>
+                  <span className="comment-time">{formatDateTime(c.createdAt)}</span>
                 </div>
                 <p className="comment-text">{c.text}</p>
                 {isOwner && (

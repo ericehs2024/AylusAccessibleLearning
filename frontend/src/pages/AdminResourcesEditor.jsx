@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
+import { formatDateTime } from '../utils/date'
 
 const CATEGORIES = ['powerpoints','lesson plans','teaching tips','worksheets','videos','other']
 
@@ -242,7 +243,7 @@ export default function AdminResourcesEditor(){
                   <h3 style={{margin:0, minWidth:0, wordBreak:'break-word'}}>{r.title}</h3>
                   <span className="badge" style={{background:'#000', whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, alignSelf:'start', contain:'layout', transform:'translateZ(0)', lineHeight:1, boxSizing:'border-box', minHeight:20}}>{r.category}</span>
                 </div>
-                <div style={{fontSize:12, color:'#5f6368', margin:'6px 0 8px'}}>{new Date(r.createdAt).toLocaleString()} · {r.branchName}</div>
+                <div style={{fontSize:12, color:'#5f6368', margin:'6px 0 8px'}}>{formatDateTime(r.createdAt)} · {r.branchName}</div>
                 {r.description && <p style={{fontSize:14, lineHeight:1.6, whiteSpace:'pre-wrap', marginBottom:8}}>{r.description}</p>}
                 {r.fileUrl && isImageFile(r.fileUrl, r.fileType, r.fileName) ? (
                   <div style={{marginTop:8, marginBottom:8}}>

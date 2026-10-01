@@ -12,7 +12,7 @@ export default function BranchHome(){
   const [err, setErr] = useState('')
 
   useEffect(()=>{
-    api.get(`/api/branches/${id}`).then(r=>setBranch(r.data)).catch(e=>setErr(e.response?.data?.error || 'Not found'))
+    api.get(`/api/branches/${id}`).then(r=>setBranch(r.data)).catch(e=>{ console.error(`[BranchHome] GET /api/branches/${id} failed`, e.response?.data || e.message); setErr(e.response?.data?.error || 'Not found') })
   },[id])
 
   if(err) return <div className="container" style={{padding:40}}>{err}</div>

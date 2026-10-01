@@ -23,8 +23,19 @@ function getPool() {
     connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
     queueLimit: 0,
     enableKeepAlive: true,
+    // Store/retrieve all dates as UTC so client can render in browser timezone
+    timezone: 'Z',
+    dateStrings: false,
   });
   return pool;
+}
+
+// helper: serialize DB date/datetime values to UTC ISO string for JSON
+function toISOStringOrNull(v) {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
 }
 
 async function ensureDatabase() {
@@ -62,6 +73,8 @@ async function initDb() {
   `);
   // add email column if upgrading from older schema
   try { await p.query(`ALTER TABLE branches ADD COLUMN email VARCHAR(255)`); } catch (e) { /* already exists */ }
+  // featured flag for the Branches tab spotlight section
+  try { await p.query(`ALTER TABLE branches ADD COLUMN featured TINYINT(1) NOT NULL DEFAULT 0`); } catch (e) { /* already exists */ }
 
   await p.query(`
     CREATE TABLE IF NOT EXISTS password_resets (
@@ -90,6 +103,8 @@ async function initDb() {
       requiredAges VARCHAR(255),
       location VARCHAR(500),
       signUpLink TEXT,
+      volunteersNeeded INT NULL,
+      volunteerStatus VARCHAR(16) NULL,
       extraDescription TEXT,
       createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -102,6 +117,8 @@ async function initDb() {
   try { await p.query(`ALTER TABLE posts ADD COLUMN requiredAges VARCHAR(255)`); } catch (e) { /* already exists */ }
   try { await p.query(`ALTER TABLE posts ADD COLUMN location VARCHAR(500)`); } catch (e) { /* already exists */ }
   try { await p.query(`ALTER TABLE posts ADD COLUMN signUpLink TEXT`); } catch (e) { /* already exists */ }
+  try { await p.query(`ALTER TABLE posts ADD COLUMN volunteersNeeded INT NULL`); } catch (e) { /* already exists */ }
+  try { await p.query(`ALTER TABLE posts ADD COLUMN volunteerStatus VARCHAR(16) NULL`); } catch (e) { /* already exists */ }
   try { await p.query(`ALTER TABLE posts ADD COLUMN extraDescription TEXT`); } catch (e) { /* already exists */ }
 
   await p.query(`
@@ -133,6 +150,41 @@ async function initDb() {
       INDEX idx_category (category),
       INDEX idx_created (createdAt),
       CONSTRAINT fk_resource_branch FOREIGN KEY (branchId) REFERENCES branches(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS scrape_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      branchUrl VARCHAR(1000) NOT NULL,
+      status VARCHAR(16) NOT NULL,
+      reason TEXT,
+      elapsedSeconds DECIMAL(10,1),
+      startDate VARCHAR(32),
+      endDate VARCHAR(32),
+      activityCount INT DEFAULT 0,
+      recordCount INT DEFAULT 0,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_created (createdAt),
+      INDEX idx_branchUrl (branchUrl(255))
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+  // migrate older schema that used elapsedMs (milliseconds) -> elapsedSeconds
+  try { await p.query(`ALTER TABLE scrape_logs ADD COLUMN elapsedSeconds DECIMAL(10,1)`); } catch (e) { /* already exists */ }
+  try { await p.query(`UPDATE scrape_logs SET elapsedSeconds = ROUND(elapsedMs/1000, 1) WHERE elapsedSeconds IS NULL AND elapsedMs IS NOT NULL`); } catch (e) { /* no legacy column */ }
+  try { await p.query(`ALTER TABLE scrape_logs DROP COLUMN elapsedMs`); } catch (e) { /* already dropped */ }
+
+  await p.query(`
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      eventType VARCHAR(64) NOT NULL,
+      branchId VARCHAR(64),
+      path VARCHAR(500),
+      meta JSON,
+      createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_type_created (eventType, createdAt),
+      INDEX idx_branch (branchId),
+      INDEX idx_path (path(255))
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
@@ -189,6 +241,8 @@ async function seed() {
       requiredAges: '14-18',
       location: 'Zoom',
       signUpLink: 'https://forms.gle/example1',
+      volunteersNeeded: 10,
+      volunteerStatus: 'open',
       extraDescription: 'Help middle school students with math and reading. Training provided. Flexible timing.'
     },
     {
@@ -200,6 +254,8 @@ async function seed() {
       requiredAges: 'All ages',
       location: 'Santa Monica Beach',
       signUpLink: '',
+      volunteersNeeded: 20,
+      volunteerStatus: 'open',
       extraDescription: 'Past beach cleanup - thank you to all volunteers who joined!'
     },
     {
@@ -211,16 +267,36 @@ async function seed() {
       requiredAges: '16+',
       location: 'Zoom + In-person (Library)',
       signUpLink: 'https://forms.gle/example3',
+      volunteersNeeded: 8,
+      volunteerStatus: 'open',
       extraDescription: 'Upcoming interactive workshop covering robotics and coding basics. Volunteers needed as mentors.'
     }
   ];
 
   for (const post of posts) {
     await p.query(
-      'INSERT INTO posts (id, branchId, title, date, sections, requiredAges, location, signUpLink, extraDescription) VALUES (?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title=VALUES(title), requiredAges=VALUES(requiredAges), location=VALUES(location), signUpLink=VALUES(signUpLink), extraDescription=VALUES(extraDescription)',
-      [post.id, post.branchId, post.title, post.date, JSON.stringify(post.sections), post.requiredAges, post.location, post.signUpLink, post.extraDescription]
+      'INSERT INTO posts (id, branchId, title, date, sections, requiredAges, location, signUpLink, volunteersNeeded, volunteerStatus, extraDescription) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title=VALUES(title), requiredAges=VALUES(requiredAges), location=VALUES(location), signUpLink=VALUES(signUpLink), volunteersNeeded=VALUES(volunteersNeeded), volunteerStatus=VALUES(volunteerStatus), extraDescription=VALUES(extraDescription)',
+      [post.id, post.branchId, post.title, post.date, JSON.stringify(post.sections), post.requiredAges, post.location, post.signUpLink, post.volunteersNeeded, post.volunteerStatus, post.extraDescription]
     );
   }
+}
+
+function parseVolunteersNeeded(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = parseInt(v, 10);
+  if (Number.isNaN(n) || n < 0) return null;
+  return n;
+}
+
+// Volunteer opportunity status: '' (blank default) | 'open' | 'closed'.
+// Blank is stored as NULL. Accepts 'close' as an alias of 'closed'.
+function parseVolunteerStatus(v) {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim().toLowerCase();
+  if (!s) return null;
+  if (s === 'open') return 'open';
+  if (s === 'closed' || s === 'close') return 'closed';
+  return null;
 }
 
 // Helpers
@@ -234,8 +310,8 @@ function parseSections(val) {
 }
 
 async function getBranches() {
-  const [rows] = await getPool().query('SELECT id, name, username FROM branches ORDER BY id');
-  return rows;
+  const [rows] = await getPool().query('SELECT id, name, username, featured FROM branches ORDER BY id');
+  return rows.map(r => ({ id: r.id, name: r.name, username: r.username, featured: !!r.featured }));
 }
 
 async function getBranchById(id) {
@@ -248,6 +324,7 @@ async function getBranchById(id) {
     username: r.username,
     passwordHash: r.passwordHash,
     email: r.email || '',
+    featured: !!r.featured,
     home: {
       title: r.homeTitle || '',
       sections: parseSections(r.homeSections)
@@ -278,6 +355,11 @@ async function updateBranchHome(id, title, sections) {
   return { title, sections };
 }
 
+async function setBranchFeatured(id, featured) {
+  const [res] = await getPool().query('UPDATE branches SET featured=? WHERE id=?', [featured ? 1 : 0, id]);
+  return res.affectedRows > 0;
+}
+
 async function getBranchPosts(branchId, limit = 100, offset = 0) {
   limit = Math.max(0, parseInt(limit, 10) || 0);
   offset = Math.max(0, parseInt(offset, 10) || 0);
@@ -289,11 +371,13 @@ async function getBranchPosts(branchId, limit = 100, offset = 0) {
     id: r.id,
     branchId: r.branchId,
     title: r.title,
-    date: r.date,
+    date: toISOStringOrNull(r.date),
     sections: parseSections(r.sections),
     requiredAges: r.requiredAges || '',
     location: r.location || '',
     signUpLink: r.signUpLink || '',
+    volunteersNeeded: r.volunteersNeeded != null ? Number(r.volunteersNeeded) : null,
+    volunteerStatus: r.volunteerStatus || null,
     extraDescription: r.extraDescription || ''
   }));
 }
@@ -312,22 +396,28 @@ async function getAllPosts(limit = 100, offset = 0) {
     branchId: r.branchId,
     branchName: r.branchName || r.branchId,
     title: r.title,
-    date: r.date,
+    date: toISOStringOrNull(r.date),
     sections: parseSections(r.sections),
     requiredAges: r.requiredAges || '',
     location: r.location || '',
     signUpLink: r.signUpLink || '',
+    volunteersNeeded: r.volunteersNeeded != null ? Number(r.volunteersNeeded) : null,
+    volunteerStatus: r.volunteerStatus || null,
     extraDescription: r.extraDescription || ''
   }));
 }
 
-async function createPost({ id, branchId, title, sections, requiredAges, location, signUpLink, extraDescription, date }) {
+async function createPost({ id, branchId, title, sections, requiredAges, location, signUpLink, volunteersNeeded, volunteerStatus, extraDescription, date }) {
   const postDate = date ? new Date(date) : new Date();
-  await getPool().query('INSERT INTO posts (id, branchId, title, date, sections, requiredAges, location, signUpLink, extraDescription) VALUES (?,?,?,?,?,?,?,?,?)', [id, branchId, title, postDate, JSON.stringify(sections || []), requiredAges || null, location || null, signUpLink || null, extraDescription || null]);
-  return { id, branchId, title, date: postDate.toISOString(), sections: sections || [], requiredAges: requiredAges || '', location: location || '', signUpLink: signUpLink || '', extraDescription: extraDescription || '' };
+  const vol = parseVolunteersNeeded(volunteersNeeded);
+  // Auto-rule: a headcount > 0 with a blank status opens the opportunity
+  let status = parseVolunteerStatus(volunteerStatus);
+  if (vol != null && vol > 0 && !status) status = 'open';
+  await getPool().query('INSERT INTO posts (id, branchId, title, date, sections, requiredAges, location, signUpLink, volunteersNeeded, volunteerStatus, extraDescription) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [id, branchId, title, postDate, JSON.stringify(sections || []), requiredAges || null, location || null, signUpLink || null, vol, status, extraDescription || null]);
+  return { id, branchId, title, date: postDate.toISOString(), sections: sections || [], requiredAges: requiredAges || '', location: location || '', signUpLink: signUpLink || '', volunteersNeeded: vol, volunteerStatus: status, extraDescription: extraDescription || '' };
 }
 
-async function updatePost(branchId, postId, { title, sections, requiredAges, location, signUpLink, extraDescription, date }) {
+async function updatePost(branchId, postId, { title, sections, requiredAges, location, signUpLink, volunteersNeeded, volunteerStatus, extraDescription, date }) {
   const fields = [];
   const vals = [];
   if (title !== undefined) { fields.push('title=?'); vals.push(title); }
@@ -335,16 +425,23 @@ async function updatePost(branchId, postId, { title, sections, requiredAges, loc
   if (requiredAges !== undefined) { fields.push('requiredAges=?'); vals.push(requiredAges); }
   if (location !== undefined) { fields.push('location=?'); vals.push(location); }
   if (signUpLink !== undefined) { fields.push('signUpLink=?'); vals.push(signUpLink); }
+  if (volunteersNeeded !== undefined) { fields.push('volunteersNeeded=?'); vals.push(parseVolunteersNeeded(volunteersNeeded)); }
+  if (volunteerStatus !== undefined) { fields.push('volunteerStatus=?'); vals.push(parseVolunteerStatus(volunteerStatus)); }
   if (extraDescription !== undefined) { fields.push('extraDescription=?'); vals.push(extraDescription); }
   if (date !== undefined) { fields.push('date=?'); vals.push(new Date(date)); }
   if (fields.length === 0) return null;
   vals.push(postId, branchId);
   const [res] = await getPool().query(`UPDATE posts SET ${fields.join(', ')} WHERE id=? AND branchId=?`, vals);
   if (res.affectedRows === 0) return null;
+  // Auto-rule on write: headcount > 0 with blank status flips to open (organizer can close it later)
+  await getPool().query(
+    `UPDATE posts SET volunteerStatus='open' WHERE id=? AND branchId=? AND volunteersNeeded IS NOT NULL AND volunteersNeeded > 0 AND (volunteerStatus IS NULL OR volunteerStatus='')`,
+    [postId, branchId]
+  );
   const [rows] = await getPool().query('SELECT * FROM posts WHERE id=? AND branchId=?', [postId, branchId]);
   if (rows.length === 0) return null;
   const r = rows[0];
-  return { id: r.id, branchId: r.branchId, title: r.title, date: r.date, sections: parseSections(r.sections), requiredAges: r.requiredAges || '', location: r.location || '', signUpLink: r.signUpLink || '', extraDescription: r.extraDescription || '' };
+  return { id: r.id, branchId: r.branchId, title: r.title, date: toISOStringOrNull(r.date), sections: parseSections(r.sections), requiredAges: r.requiredAges || '', location: r.location || '', signUpLink: r.signUpLink || '', volunteersNeeded: r.volunteersNeeded != null ? Number(r.volunteersNeeded) : null, volunteerStatus: r.volunteerStatus || null, extraDescription: r.extraDescription || '' };
 }
 
 async function deletePost(branchId, postId) {
@@ -410,11 +507,13 @@ async function getPostById(postId) {
         branchId: r.branchId,
         branchName: r.branchName || r.branchId,
         title: r.title,
-        date: r.date,
+        date: toISOStringOrNull(r.date),
         sections: parseSections(r.sections),
         requiredAges: r.requiredAges || '',
         location: r.location || '',
         signUpLink: r.signUpLink || '',
+        volunteersNeeded: r.volunteersNeeded != null ? Number(r.volunteersNeeded) : null,
+        volunteerStatus: r.volunteerStatus || null,
         extraDescription: r.extraDescription || ''
       };
     }
@@ -437,7 +536,7 @@ async function getPostComments(postId) {
     postId: r.postId,
     authorName: r.authorName,
     text: r.text,
-    createdAt: r.createdAt
+    createdAt: toISOStringOrNull(r.createdAt)
   }));
 }
 
@@ -499,8 +598,8 @@ async function getResourceById(id) {
     fileUrl: r.fileUrl || '',
     fileName: r.fileName || '',
     fileType: r.fileType || '',
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
+    createdAt: toISOStringOrNull(r.createdAt),
+    updatedAt: toISOStringOrNull(r.updatedAt),
   };
 }
 
@@ -521,8 +620,8 @@ async function getBranchResources(branchId, limit = 100, offset = 0) {
     fileUrl: r.fileUrl || '',
     fileName: r.fileName || '',
     fileType: r.fileType || '',
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
+    createdAt: toISOStringOrNull(r.createdAt),
+    updatedAt: toISOStringOrNull(r.updatedAt),
   }));
 }
 
@@ -559,8 +658,8 @@ async function getAllResources({ q, category, branchId, limit = 100, offset = 0 
     fileUrl: r.fileUrl || '',
     fileName: r.fileName || '',
     fileType: r.fileType || '',
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
+    createdAt: toISOStringOrNull(r.createdAt),
+    updatedAt: toISOStringOrNull(r.updatedAt),
   }));
 }
 
@@ -585,6 +684,120 @@ async function deleteResource(branchId, resourceId) {
   return res.affectedRows > 0;
 }
 
+// --- Hour Compiler run logs (for future review) ---
+async function logScrapeRun({ branchUrl, status, reason, elapsedSeconds, startDate, endDate, activityCount, recordCount }) {
+  try {
+    await getPool().query(
+      'INSERT INTO scrape_logs (branchUrl, status, reason, elapsedSeconds, startDate, endDate, activityCount, recordCount) VALUES (?,?,?,?,?,?,?,?)',
+      [
+        String(branchUrl || '').slice(0, 1000),
+        status === 'success' ? 'success' : 'failure',
+        reason ? String(reason).slice(0, 2000) : null,
+        elapsedSeconds != null ? Math.max(0, Math.round(Number(elapsedSeconds) * 10) / 10) : null,
+        startDate || null,
+        endDate || null,
+        Math.max(0, parseInt(activityCount, 10) || 0),
+        Math.max(0, parseInt(recordCount, 10) || 0),
+      ]
+    );
+  } catch (e) {
+    // logging must never break a scrape response
+    console.error('[scrape-log] failed to write scrape_logs:', e.message);
+  }
+}
+
+async function getScrapeLogs(limit = 100, offset = 0) {
+  limit = Math.min(Math.max(0, parseInt(limit, 10) || 0), 500);
+  offset = Math.max(0, parseInt(offset, 10) || 0);
+  const [rows] = await getPool().query(
+    `SELECT id, branchUrl, status, reason, elapsedSeconds, startDate, endDate, activityCount, recordCount, createdAt
+     FROM scrape_logs ORDER BY id DESC LIMIT ${limit} OFFSET ${offset}`
+  );
+  return rows.map(r => ({
+    id: r.id,
+    branchUrl: r.branchUrl,
+    status: r.status,
+    reason: r.reason || '',
+    elapsedSeconds: r.elapsedSeconds != null ? Number(r.elapsedSeconds) : null,
+    startDate: r.startDate || '',
+    endDate: r.endDate || '',
+    activityCount: r.activityCount || 0,
+    recordCount: r.recordCount || 0,
+    createdAt: toISOStringOrNull(r.createdAt),
+  }));
+}
+
+// --- Site analytics (pageviews, logins, password changes) ---
+const ANALYTICS_EVENT_TYPES = ['pageview', 'branch_login', 'branch_password_change', 'admin_login'];
+
+async function logAnalyticsEvent({ eventType, branchId, path, meta }) {
+  try {
+    if (!ANALYTICS_EVENT_TYPES.includes(eventType)) return;
+    await getPool().query(
+      'INSERT INTO analytics_events (eventType, branchId, path, meta) VALUES (?,?,?,?)',
+      [
+        eventType,
+        branchId ? String(branchId).slice(0, 64) : null,
+        path ? String(path).slice(0, 500) : null,
+        meta ? JSON.stringify(meta).slice(0, 2000) : null,
+      ]
+    );
+  } catch (e) {
+    // analytics must never break a user-facing response
+    console.error('[analytics] failed to write event:', e.message);
+  }
+}
+
+async function getDailyCounts(eventType, days = 30) {
+  days = Math.min(Math.max(1, parseInt(days, 10) || 30), 365);
+  const [rows] = await getPool().query(
+    `SELECT DATE(createdAt) AS day, COUNT(*) AS count FROM analytics_events
+     WHERE eventType = ? AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+     GROUP BY DATE(createdAt) ORDER BY day ASC`,
+    [eventType, days]
+  );
+  return rows.map(r => ({
+    day: r.day instanceof Date ? r.day.toISOString().slice(0, 10) : String(r.day).slice(0, 10),
+    count: Number(r.count),
+  }));
+}
+
+async function getTopBranches(limit = 10, days = 30) {
+  limit = Math.min(Math.max(1, parseInt(limit, 10) || 10), 50);
+  days = Math.min(Math.max(1, parseInt(days, 10) || 30), 365);
+  const [rows] = await getPool().query(
+    `SELECT e.branchId, b.name AS branchName, COUNT(*) AS count FROM analytics_events e
+     LEFT JOIN branches b ON b.id = e.branchId
+     WHERE e.branchId IS NOT NULL AND e.createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+     GROUP BY e.branchId, b.name ORDER BY count DESC LIMIT ${limit}`,
+    [days]
+  );
+  return rows.map(r => ({ branchId: r.branchId, branchName: r.branchName || r.branchId, count: Number(r.count) }));
+}
+
+async function getTopPages(limit = 10, days = 30) {
+  limit = Math.min(Math.max(1, parseInt(limit, 10) || 10), 50);
+  days = Math.min(Math.max(1, parseInt(days, 10) || 30), 365);
+  const [rows] = await getPool().query(
+    `SELECT path, COUNT(*) AS count FROM analytics_events
+     WHERE eventType = 'pageview' AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+     GROUP BY path ORDER BY count DESC LIMIT ${limit}`,
+    [days]
+  );
+  return rows.map(r => ({ path: r.path || '(unknown)', count: Number(r.count) }));
+}
+
+async function getAnalyticsSummary(days = 30) {
+  const [dailyPageviews, dailyPasswordChanges, dailyAdminLogins, topBranches, topPages] = await Promise.all([
+    getDailyCounts('pageview', days),
+    getDailyCounts('branch_password_change', days),
+    getDailyCounts('admin_login', days),
+    getTopBranches(10, days),
+    getTopPages(10, days),
+  ]);
+  return { days, dailyPageviews, dailyPasswordChanges, dailyAdminLogins, topBranches, topPages };
+}
+
 module.exports = {
   getPool,
   initDb,
@@ -595,6 +808,7 @@ module.exports = {
   getBranchByEmail,
   createBranch,
   updateBranchHome,
+  setBranchFeatured,
   getBranchPosts,
   getAllPosts,
   getPostById,
@@ -618,4 +832,11 @@ module.exports = {
   getAllResources,
   updateResource,
   deleteResource,
+  logScrapeRun,
+  getScrapeLogs,
+  ANALYTICS_EVENT_TYPES,
+  logAnalyticsEvent,
+  getAnalyticsSummary,
+  parseVolunteersNeeded,
+  parseVolunteerStatus,
 };

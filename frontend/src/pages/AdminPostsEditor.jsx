@@ -6,6 +6,7 @@ import SectionView from '../components/SectionView'
 import { useAuth } from '../context/AuthContext'
 import { useAdmin } from '../context/AdminContext'
 import { useToast } from '../components/Toast'
+import { formatDate, formatDateTime, toLocalDateTimeInputValue, fromLocalDateTimeInputValue } from '../utils/date'
 
 function PostEditor({ branchId, onCreated }){
   const { isAdminAuthed, adminToken } = useAdmin()
@@ -14,18 +15,26 @@ function PostEditor({ branchId, onCreated }){
   const [requiredAges, setRequiredAges] = useState('')
   const [location, setLocation] = useState('')
   const [signUpLink, setSignUpLink] = useState('')
+  const [volunteersNeeded, setVolunteersNeeded] = useState('')
+  const [volunteerStatus, setVolunteerStatus] = useState('') // '' = blank default, 'open', 'closed'
   const [date, setDate] = useState('')
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
+
+  // Auto-rule: entering a headcount > 0 flips a blank status to Open
+  const onVolunteersNeededChange = (v)=>{
+    setVolunteersNeeded(v)
+    if (v !== '' && Number(v) > 0 && !volunteerStatus) setVolunteerStatus('open')
+  }
 
   const create = async ()=>{
     if(!title.trim()) return toast('Title required', 'error')
     setSaving(true)
     try{
       const headers = isAdminAuthed && adminToken ? { Authorization: `Bearer ${adminToken}` } : {}
-      const res = await api.post(`/api/branches/${branchId}/posts`, { title, sections, requiredAges, location, signUpLink, date: date || undefined }, { headers })
+      const res = await api.post(`/api/branches/${branchId}/posts`, { title, sections, requiredAges, location, signUpLink, volunteersNeeded: volunteersNeeded === '' ? null : Number(volunteersNeeded), volunteerStatus: volunteerStatus || null, date: fromLocalDateTimeInputValue(date) }, { headers })
       setTitle(''); setSections([{ id: Date.now().toString(), image:'', text:'' }])
-      setRequiredAges(''); setLocation(''); setSignUpLink(''); setDate('')
+      setRequiredAges(''); setLocation(''); setSignUpLink(''); setVolunteersNeeded(''); setVolunteerStatus(''); setDate('')
       toast('Post published', 'success')
       onCreated(res.data)
     }catch(e){ toast(e.response?.data?.error || e.message, 'error')}
@@ -55,6 +64,18 @@ function PostEditor({ branchId, onCreated }){
           <label className="label">Sign-up link</label>
           <input className="input" value={signUpLink} onChange={e=>setSignUpLink(e.target.value)} placeholder="https://forms.gle/..." />
         </div>
+        <div>
+          <label className="label">Volunteers needed</label>
+          <input className="input" type="number" min="0" step="1" value={volunteersNeeded} onChange={e=>onVolunteersNeededChange(e.target.value)} placeholder="e.g. 10 (leave blank if none)" />
+        </div>
+        <div>
+          <label className="label">Volunteer opportunity status</label>
+          <select className="select" value={volunteerStatus} onChange={e=>setVolunteerStatus(e.target.value)}>
+            <option value="">— (blank)</option>
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+          </select>
+        </div>
       </div>
       <div style={{marginTop:14}}>
         <label className="label">Description</label>
@@ -76,6 +97,8 @@ export default function AdminPostsEditor(){
   const [editRequiredAges, setEditRequiredAges] = useState('')
   const [editLocation, setEditLocation] = useState('')
   const [editSignUpLink, setEditSignUpLink] = useState('')
+  const [editVolunteersNeeded, setEditVolunteersNeeded] = useState('')
+  const [editVolunteerStatus, setEditVolunteerStatus] = useState('')
   const [editDate, setEditDate] = useState('')
 
   const load = ()=> api.get(`/api/branches/${id}/posts`).then(r=>setPosts(r.data))
@@ -96,13 +119,20 @@ export default function AdminPostsEditor(){
     setEditRequiredAges(p.requiredAges || '')
     setEditLocation(p.location || '')
     setEditSignUpLink(p.signUpLink || '')
-    setEditDate(p.date ? new Date(p.date).toISOString().slice(0,16) : '')
+    setEditVolunteersNeeded(p.volunteersNeeded != null ? String(p.volunteersNeeded) : '')
+    setEditVolunteerStatus(p.volunteerStatus || '')
+    setEditDate(toLocalDateTimeInputValue(p.date))
+  }
+  // Auto-rule (edit form): entering a headcount > 0 flips a blank status to Open
+  const onEditVolunteersNeededChange = (v)=>{
+    setEditVolunteersNeeded(v)
+    if (v !== '' && Number(v) > 0 && !editVolunteerStatus) setEditVolunteerStatus('open')
   }
   const { toast, showConfirm } = useToast()
   const getAuthHeaders = ()=> isSuperAdmin && adminToken ? { Authorization: `Bearer ${adminToken}` } : {}
   const saveEdit = async (postId)=>{
     try{
-      await api.put(`/api/branches/${id}/posts/${postId}`, { title: editTitle, sections: editSections, requiredAges: editRequiredAges, location: editLocation, signUpLink: editSignUpLink, date: editDate || undefined }, { headers: getAuthHeaders() })
+      await api.put(`/api/branches/${id}/posts/${postId}`, { title: editTitle, sections: editSections, requiredAges: editRequiredAges, location: editLocation, signUpLink: editSignUpLink, volunteersNeeded: editVolunteersNeeded === '' ? null : Number(editVolunteersNeeded), volunteerStatus: editVolunteerStatus || null, date: fromLocalDateTimeInputValue(editDate) }, { headers: getAuthHeaders() })
       setEditing(null)
       toast('Post updated', 'success')
       load()
@@ -147,7 +177,7 @@ export default function AdminPostsEditor(){
         posts.map(p=>(
           <div key={p.id} className="card post-card">
             <div className="post-meta">
-              <span>{new Date(p.date).toLocaleString()}</span>
+              <span>{formatDateTime(p.date)}</span>
             </div>
             {editing===p.id ? (
               <>
@@ -158,6 +188,8 @@ export default function AdminPostsEditor(){
                   <div><label className="label">Age group</label><input className="input" value={editRequiredAges} onChange={e=>setEditRequiredAges(e.target.value)} /></div>
                   <div><label className="label">Location</label><input className="input" value={editLocation} onChange={e=>setEditLocation(e.target.value)} /></div>
                   <div><label className="label">Sign-up link</label><input className="input" value={editSignUpLink} onChange={e=>setEditSignUpLink(e.target.value)} /></div>
+                  <div><label className="label">Volunteers needed</label><input className="input" type="number" min="0" step="1" value={editVolunteersNeeded} onChange={e=>onEditVolunteersNeededChange(e.target.value)} placeholder="Blank = none" /></div>
+                  <div><label className="label">Volunteer opportunity status</label><select className="select" value={editVolunteerStatus} onChange={e=>setEditVolunteerStatus(e.target.value)}><option value="">— (blank)</option><option value="open">Open</option><option value="closed">Closed</option></select></div>
                 </div>
                 <div style={{marginTop:12}}>
                   <EditableSections sections={editSections} setSections={setEditSections} />
@@ -171,7 +203,7 @@ export default function AdminPostsEditor(){
               <>
                 <h3 style={{margin:'6px 0 10px'}}>{p.title}</h3>
                 <div style={{fontSize:13, color:'#5f6368', lineHeight:1.7, marginBottom:8}}>
-                  <div>{new Date(p.date).toLocaleDateString()} {p.requiredAges ? `· ${p.requiredAges}` : ''} {p.location ? `· ${p.location}` : ''}</div>
+                  <div>{formatDate(p.date)} {p.requiredAges ? `· ${p.requiredAges}` : ''} {p.location ? `· ${p.location}` : ''}{p.volunteersNeeded != null ? ` · ${p.volunteersNeeded} volunteer${Number(p.volunteersNeeded) === 1 ? '' : 's'} needed` : ''}{p.volunteerStatus ? ` · ${p.volunteerStatus === 'closed' ? 'Closed' : 'Open'}` : ''}</div>
                   {p.signUpLink && <div><a href={p.signUpLink} target="_blank" rel="noreferrer">Sign-up link</a></div>}
                 </div>
                 <SectionView sections={p.sections} />

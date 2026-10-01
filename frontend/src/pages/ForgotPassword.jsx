@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import PasswordInput from '../components/PasswordInput'
+import { trackEvent } from '../utils/analytics'
 
 function validatePassword(pw) {
   if (!pw || pw.length < 8) return 'At least 8 characters'
@@ -76,6 +77,7 @@ export default function ForgotPassword(){
     setLoading(true)
     try{
       await api.post('/api/auth/forgot/reset', { username: username.trim(), code, newPassword })
+      trackEvent('branch_password_change', { meta: { username: username.trim(), via: 'forgot' } })
       setMsg('Password reset successfully! Redirecting to login...')
       setTimeout(()=> nav('/login'), 1800)
     }catch(ex){ setErr(ex.response?.data?.error || 'Failed to reset password') }

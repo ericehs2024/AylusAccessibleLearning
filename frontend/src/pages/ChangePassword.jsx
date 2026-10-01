@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
 import PasswordInput from '../components/PasswordInput'
+import { trackEvent } from '../utils/analytics'
 
 function validatePassword(pw) {
   if (!pw || pw.length < 8) return 'At least 8 characters'
@@ -85,6 +86,7 @@ export default function ChangePassword(){
     setLoading(true)
     try{
       await api.post('/api/auth/reset-password', { code, newPassword })
+      trackEvent('branch_password_change', { branchId: user.branchId })
       setMsg('Password updated successfully! Please login again with new password.')
       setTimeout(()=> nav('/'), 1800)
     }catch(ex){ setErr(ex.response?.data?.error || 'Failed to update password') }
@@ -101,6 +103,7 @@ export default function ChangePassword(){
     setLoading(true)
     try{
       await api.post('/api/auth/change-password', { oldPassword, newPassword: directNewPassword })
+      trackEvent('branch_password_change', { branchId: user.branchId })
       setMsg('Password changed successfully! Please login again.')
       setOldPassword(''); setDirectNewPassword(''); setDirectConfirm('')
       setTimeout(()=> nav('/'), 1500)

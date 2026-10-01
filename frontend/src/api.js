@@ -23,4 +23,20 @@ api.interceptors.request.use(cfg => {
   return cfg
 })
 
+// Central debug logging for all API failures (method, URL, status, server message)
+api.interceptors.response.use(
+  res => res,
+  err => {
+    const cfg = err.config || {}
+    console.error('[API error]', {
+      method: (cfg.method || '').toUpperCase(),
+      url: cfg.url,
+      status: err.response?.status,
+      data: err.response?.data,
+      message: err.message,
+    })
+    return Promise.reject(err)
+  }
+)
+
 export default api

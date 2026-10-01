@@ -12,8 +12,8 @@ export default function BranchPosts(){
   const [branch, setBranch] = useState(null)
 
   useEffect(()=>{
-    api.get(`/api/branches/${id}`).then(r=>setBranch(r.data)).catch(()=>{})
-    api.get(`/api/branches/${id}/posts`).then(r=>setPosts(r.data))
+    api.get(`/api/branches/${id}`).then(r=>setBranch(r.data)).catch(e=>console.error(`[BranchPosts] GET /api/branches/${id} failed`, e.response?.data || e.message))
+    api.get(`/api/branches/${id}/posts`).then(r=>setPosts(r.data)).catch(e=>console.error(`[BranchPosts] GET /api/branches/${id}/posts failed`, e.response?.data || e.message))
   },[id])
 
   const isOwner = user && user.branchId === id

@@ -1,8 +1,9 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { formatDate } from '../utils/date'
 
 export default function WirePostCard({ post, branchName }){
-  const dateOnly = post.date ? new Date(post.date).toLocaleDateString() : 'Date TBD'
+  const dateOnly = formatDate(post.date)
   // required URL structure: /branches/:branchId/posts/:postId (e.g. /branches/branch1/posts/1788496563584-81)
   const branchId = post.branchId || (branchName && branchName.toLowerCase().replace(/\s+/g,'')) || 'unknown'
   const postUrl = `/branches/${branchId}/posts/${post.id}`
@@ -12,10 +13,18 @@ export default function WirePostCard({ post, branchName }){
       <div className="wire-card-main">
         <div className="wire-card-left" style={{flex:1}}>
           <h3 id={`wire-title-${post.id}`} className="wire-card-title">{post.title || 'Untitled Post'}</h3>
+          {post.volunteersNeeded != null && Number(post.volunteersNeeded) > 0 && (post.volunteerStatus !== 'closed') && (
+            <div style={{marginBottom:8}}><span className="badge">🙋 {post.volunteersNeeded} volunteer{Number(post.volunteersNeeded) === 1 ? '' : 's'} needed · Open</span></div>
+          )}
+          {post.volunteerStatus === 'closed' && post.volunteersNeeded != null && Number(post.volunteersNeeded) > 0 && (
+            <div style={{marginBottom:8}}><span className="badge" style={{background:'#666'}}>Closed — position filled</span></div>
+          )}
           <div className="wire-inline-row">
             {branchName && <div className="wire-field"><span className="wire-label">BRANCH</span><span className="wire-meta-branch" style={{marginBottom:0}} aria-label="branch">{branchName}</span></div>}
             <div className="wire-field"><span className="wire-label">DATE</span><span>{dateOnly}</span></div>
             <div className="wire-field"><span className="wire-label">AGE GROUP</span><span>{post.requiredAges ? post.requiredAges : 'All ages'}</span></div>
+            <div className="wire-field"><span className="wire-label">VOLUNTEERS NEEDED</span><span>{post.volunteersNeeded != null ? post.volunteersNeeded : '—'}</span></div>
+            <div className="wire-field"><span className="wire-label">VOLUNTEER STATUS</span><span>{post.volunteerStatus === 'closed' ? 'Closed' : post.volunteerStatus === 'open' ? 'Open' : '—'}</span></div>
           </div>
           <div className="wire-field"><span className="wire-label">Location</span><span>{post.location ? post.location : 'TBD'}</span></div>
           <div className="wire-field">

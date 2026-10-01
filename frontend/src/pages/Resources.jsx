@@ -3,6 +3,7 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useAdmin } from '../context/AdminContext'
+import { formatDate } from '../utils/date'
 
 const CATEGORIES = ['all','powerpoints','lesson plans','teaching tips','worksheets','videos','other']
 
@@ -30,7 +31,7 @@ const ResourceCard = React.memo(function ResourceCard({r, canView}){
       </div>
       <div style={{fontSize:12, color:'#5f6368', margin:'6px 0 10px', display:'flex', gap:12, flexWrap:'wrap'}}>
         <span>Branch: <strong style={{color:'#000'}}>{r.branchName}</strong></span>
-        <span>{new Date(r.createdAt).toLocaleDateString()}</span>
+        <span>{formatDate(r.createdAt)}</span>
         {canView && r.fileName && <span>File: {r.fileName}</span>}
       </div>
       {!canView ? (
@@ -83,7 +84,7 @@ export default function Resources(){
   const qFirstRef = useRef(true)
 
   useEffect(()=>{
-    api.get('/api/branches').then(r=>setBranches(r.data)).catch(()=>{})
+    api.get('/api/branches').then(r=>setBranches(r.data)).catch(e=>console.error('[Resources] GET /api/branches failed', e.response?.data || e.message))
   },[])
 
   useEffect(()=>{
@@ -110,7 +111,7 @@ export default function Resources(){
         if(prev.length===res.data.length && JSON.stringify(prev)===JSON.stringify(res.data)) return prev
         return res.data
       })
-    }catch(e){ setErr(e.response?.data?.error || 'Failed to load resources')}
+    }catch(e){ console.error('[Resources] GET /api/resources failed', { params, serverError: e.response?.data, message: e.message }); setErr(e.response?.data?.error || 'Failed to load resources')}
     finally{ setLoading(false); setHasFetched(true)}
   }
 

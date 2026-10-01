@@ -1,11 +1,11 @@
-import React from 'react'
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
+import React, { useEffect, useRef } from 'react'
+import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import OrgHome from './pages/OrgHome'
-import Upcoming from './pages/Upcoming'
-import PastEvents from './pages/PastEvents'
+import Events from './pages/Events'
+import Volunteers from './pages/Volunteers'
 import Resources from './pages/Resources'
+import Guide from './pages/Guide'
 import Platform from './pages/Platform'
-import MyBranch from './pages/MyBranch'
 import Branches from './pages/Branches'
 import BranchHome from './pages/BranchHome'
 import BranchPosts from './pages/BranchPosts'
@@ -17,7 +17,20 @@ import AdminResourcesEditor from './pages/AdminResourcesEditor'
 import ChangePassword from './pages/ChangePassword'
 import ForgotPassword from './pages/ForgotPassword'
 import Admin from './pages/Admin'
-import { useAuth } from './context/AuthContext'
+import { trackPageview } from './utils/analytics'
+
+// Logs one pageview per route change for the admin analytics dashboard
+function RouteTracker(){
+  const loc = useLocation()
+  const last = useRef(null)
+  useEffect(()=>{
+    if (last.current !== loc.pathname) {
+      last.current = loc.pathname
+      trackPageview(loc.pathname)
+    }
+  }, [loc.pathname])
+  return null
+}
 
 function SiteHeader(){
   return (
@@ -30,32 +43,21 @@ function SiteHeader(){
 
 function Navbar(){
   const loc = useLocation()
-  const nav = useNavigate()
-  const { user } = useAuth()
   const isActiveStrict = (p) => loc.pathname === p || loc.pathname.startsWith(p + '/')
-  const isMyBranchActive = loc.pathname === '/my-branch' || loc.pathname.startsWith('/branch/')
-  const isAllBranchesActive = loc.pathname === '/branches' || loc.pathname.startsWith('/branches/')
+  const isEventsActive = loc.pathname === '/events' || loc.pathname === '/upcoming' || loc.pathname === '/past'
+  const isBranchesActive = loc.pathname === '/branches' || loc.pathname === '/my-branch' || loc.pathname.startsWith('/branch/') || loc.pathname.startsWith('/branches/')
   const isHourCompilerActive = loc.pathname === '/platform' || loc.pathname.startsWith('/platform/') || loc.pathname === '/hour-compiler' || loc.pathname.startsWith('/hour-compiler')
-
-  const handleMyBranch = (e) => {
-    e.preventDefault()
-    if(user && user.branchId){
-      nav(`/branch/${user.branchId}`)
-    } else {
-      nav('/my-branch')
-    }
-  }
 
   return (
     <nav className="wire-navbar">
       <div className="wire-nav-inner">
         <Link to="/" className={`wire-nav-item ${loc.pathname==='/' ? 'active' : ''}`}>HOME</Link>
-        <Link to="/upcoming" className={`wire-nav-item ${isActiveStrict('/upcoming') ? 'active' : ''}`}>Upcoming</Link>
-        <Link to="/past" className={`wire-nav-item ${isActiveStrict('/past') ? 'active' : ''}`}>Past events</Link>
-        <a href="/my-branch" onClick={handleMyBranch} className={`wire-nav-item ${isMyBranchActive ? 'active' : ''}`}>My branch</a>
-        <Link to="/branches" className={`wire-nav-item ${isAllBranchesActive ? 'active' : ''}`}>All branches</Link>
+        <Link to="/branches" className={`wire-nav-item ${isBranchesActive ? 'active' : ''}`}>Branches</Link>
+        <Link to="/events" className={`wire-nav-item ${isEventsActive ? 'active' : ''}`}>Events</Link>
+        <Link to="/volunteers" className={`wire-nav-item ${isActiveStrict('/volunteers') ? 'active' : ''}`}>Volunteers</Link>
         <Link to="/resources" className={`wire-nav-item ${isActiveStrict('/resources') ? 'active' : ''}`}>Resources</Link>
         <Link to="/platform" className={`wire-nav-item ${isHourCompilerActive ? 'active' : ''}`}>Hour Compiler</Link>
+        <Link to="/guide" className={`wire-nav-item ${loc.pathname==='/guide' ? 'active' : ''}`}>Guide</Link>
       </div>
     </nav>
   )
@@ -71,13 +73,19 @@ export default function App(){
     <>
       <SiteHeader/>
       <Navbar/>
+      <RouteTracker/>
       <main style={{flex:1, display:'flex', flexDirection:'column'}}>
         <Routes>
           <Route path="/" element={<OrgHome/>} />
-          <Route path="/upcoming" element={<Upcoming/>} />
-          <Route path="/past" element={<PastEvents/>} />
-          <Route path="/my-branch" element={<MyBranch/>} />
+          <Route path="/events" element={<Events/>} />
+          <Route path="/volunteers" element={<Volunteers/>} />
+          {/* legacy URLs keep working, redirect into unified Events tabs */}
+          <Route path="/upcoming" element={<Navigate to="/events" replace />} />
+          <Route path="/past" element={<Navigate to="/events?tab=past" replace />} />
+          {/* legacy my-branch URL lands on combined Branches page (My Branch pinned at top) */}
+          <Route path="/my-branch" element={<Navigate to="/branches" replace />} />
           <Route path="/resources" element={<Resources/>} />
+          <Route path="/guide" element={<Guide/>} />
           <Route path="/platform" element={<Platform/>} />
           <Route path="/hour-compiler" element={<Platform/>} />
           <Route path="/hour-compiler/*" element={<Platform/>} />
@@ -100,7 +108,7 @@ export default function App(){
         </Routes>
       </main>
       <footer style={{textAlign:'center', padding:'32px', fontSize:13}}>
-        © {new Date().getFullYear()} Aylus Accessible Learning • Non-profit Organization
+        © {new Date().getFullYear()} Aylus Accessible Learning • Non-profit Organization • <Link to="/guide" style={{color:'#fff', fontWeight:700}}>User Guide</Link>
       </footer>
     </>
   )

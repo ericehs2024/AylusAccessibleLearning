@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-do
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
 import PasswordInput from '../components/PasswordInput'
+import { trackEvent } from '../utils/analytics'
 
 export default function Login(){
   const [search] = useSearchParams()
@@ -26,6 +27,7 @@ export default function Login(){
     try{
       const res = await api.post('/api/auth/login', { username, password })
       login(res.data.token, { ...res.data.branch, branchId: res.data.branch.id })
+      trackEvent('branch_login', { branchId: res.data.branch.id })
       const from = location.state?.from || search.get('next')
       if(from) nav(from, { replace: true })
       else nav(`/branch/${res.data.branch.id}`)
