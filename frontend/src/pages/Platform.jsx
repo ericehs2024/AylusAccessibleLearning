@@ -371,8 +371,8 @@ export default function Platform() {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
               <h3 style={{ margin: 0, fontFamily: "'Montserrat', sans-serif", fontSize: 15 }}>Results</h3>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="btn btn-small" onClick={() => downloadCsv(toCsv(data), `aylus-hours-${(startDate || 'all')}-to-${(endDate || 'all')}.csv`)} disabled={data.length === 0}>Download CSV</button>
                 <button className="btn btn-small btn-outline" onClick={() => downloadCsv(toCsv(visibleEntries.map(e => ({ name: e.name, hours: e.total, date: '', sourceUrl: '' }))), `aylus-totals-${Date.now()}.csv`)} disabled={data.length === 0}>Download Totals CSV</button>
+                <button className="btn btn-small" onClick={() => downloadCsv(toCsv(data), `aylus-hours-${(startDate || 'all')}-to-${(endDate || 'all')}.csv`)} disabled={data.length === 0}>Download CSV</button>
               </div>
             </div>
 

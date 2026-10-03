@@ -12,12 +12,22 @@ export default function WirePostCard({ post, branchName }){
     <article className="wire-card" aria-labelledby={`wire-title-${post.id}`}>
       <div className="wire-card-main">
         <div className="wire-card-left" style={{flex:1}}>
-          <h3 id={`wire-title-${post.id}`} className="wire-card-title">{post.title || 'Untitled Post'}</h3>
+          <div className="wire-card-header">
+            <h3 id={`wire-title-${post.id}`} className="wire-card-title">
+              <Link
+                to={postUrl}
+                className="wire-card-title-link"
+                aria-label={`Open post ${post.title}`}
+              >
+                {post.title || 'Untitled Post'}
+              </Link>
+            </h3>
+            <Link to={postUrl} className="wire-more-btn wire-more-top" aria-label={`Open post ${post.title}`}>
+              Click to see more
+            </Link>
+          </div>
           {post.volunteersNeeded != null && Number(post.volunteersNeeded) > 0 && (post.volunteerStatus !== 'closed') && (
             <div style={{marginBottom:8}}><span className="badge">🙋 {post.volunteersNeeded} volunteer{Number(post.volunteersNeeded) === 1 ? '' : 's'} needed · Open</span></div>
-          )}
-          {post.volunteerStatus === 'closed' && post.volunteersNeeded != null && Number(post.volunteersNeeded) > 0 && (
-            <div style={{marginBottom:8}}><span className="badge" style={{background:'#666'}}>Closed — position filled</span></div>
           )}
           <div className="wire-inline-row">
             {branchName && <div className="wire-field"><span className="wire-label">BRANCH</span><span className="wire-meta-branch" style={{marginBottom:0}} aria-label="branch">{branchName}</span></div>}
@@ -32,12 +42,6 @@ export default function WirePostCard({ post, branchName }){
             {post.signUpLink ? <a href={post.signUpLink} target="_blank" rel="noreferrer" className="wire-link" aria-label={`Sign up for ${post.title}`}>Sign up</a> : <span style={{color:'#666', fontWeight:600}}>No link yet</span>}
           </div>
         </div>
-      </div>
-
-      <div className="wire-card-footer">
-        <Link to={postUrl} className="wire-more-btn" aria-label={`Open post ${post.title}`}>
-          Click to see more
-        </Link>
       </div>
     </article>
   )

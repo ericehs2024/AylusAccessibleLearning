@@ -146,6 +146,9 @@ export default function Admin(){
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [analyticsErr, setAnalyticsErr] = useState('')
 
+  // search existing branches
+  const [branchQuery, setBranchQuery] = useState('')
+
   const isAuthed = isAdminAuthed
 
   const fetchBranches = async () => {
@@ -313,10 +316,29 @@ export default function Admin(){
 
       <div className="wire-card">
         <h3 style={{fontFamily:'Arial, Helvetica, sans-serif', fontSize:14, fontWeight:800, marginBottom:10}}>Existing Branches ({branches.length})</h3>
+        <div style={{display:'flex', gap:8, marginBottom:12, flexWrap:'wrap', alignItems:'center'}}>
+          <input
+            className="input"
+            placeholder="Search branches (name, username, email)..."
+            value={branchQuery}
+            onChange={e=>setBranchQuery(e.target.value)}
+            style={{marginTop:0, flex:'1 1 220px', maxWidth:340}}
+            aria-label="Search existing branches"
+          />
+          {branchQuery && <button type="button" className="btn btn-small btn-outline" onClick={()=>setBranchQuery('')}>Clear</button>}
+        </div>
         {branchLoading && <div style={{fontSize:13, color:'#555'}}>Loading branches...</div>}
         {listErr && <div style={{background:'#fce8e6', color:'#b3261e', padding:10, fontSize:13, border:'3px solid #000', marginBottom:10}}>{listErr}</div>}
         {!branchLoading && !listErr && branches.length === 0 && <div style={{fontSize:13, color:'#555'}}>No branches yet.</div>}
-        {!branchLoading && branches.length > 0 && (
+        {!branchLoading && !listErr && branches.length > 0 && (() => {
+          const q = branchQuery.trim().toLowerCase()
+          const filtered = q
+            ? branches.filter(b => [b.name, b.username, b.email, b.id].filter(Boolean).some(v => String(v).toLowerCase().includes(q)))
+            : branches
+          if (filtered.length === 0) return <div style={{fontSize:13, color:'#555'}}>No branches match “{branchQuery.trim()}”.</div>
+          return (
+          <>
+          {q && <p style={{fontSize:12, color:'#555', marginBottom:8}}>Showing {filtered.length} of {branches.length} branch(es) for “{branchQuery.trim()}”.</p>}
           <div style={{overflowX:'auto'}}>
             <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
               <thead>
@@ -328,7 +350,7 @@ export default function Admin(){
                 </tr>
               </thead>
               <tbody>
-                {branches.map(b=> (
+                {filtered.map(b=> (
                   <tr key={b.id} style={{borderBottom:'1px solid #000'}}>
                     <td style={{padding:'8px 6px', fontWeight:700}}>{b.name}</td>
                     <td style={{padding:'8px 6px'}}>{b.username}</td>
@@ -344,7 +366,9 @@ export default function Admin(){
               </tbody>
             </table>
           </div>
-        )}
+          </>
+          )
+        })()}
       </div>
     </div>
   )

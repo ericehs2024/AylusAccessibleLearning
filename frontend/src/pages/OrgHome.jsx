@@ -48,7 +48,7 @@ export default function OrgHome(){
         </div>
         <label style={{display:'inline-flex', gap:8, alignItems:'center', fontSize:13, marginBottom:14, cursor:'pointer', userSelect:'none'}}>
           <input type="checkbox" checked={needsVolunteersOnly} onChange={e=>setNeedsVolunteersOnly(e.target.checked)} style={{width:16, height:16, accentColor:'#dd4444'}} />
-          🙋 Only show events needing volunteers
+          Only show events needing volunteers
         </label>
         {(applied || needsVolunteersOnly) && <p style={{fontSize:12, color:'#555', marginBottom:10}}>Showing {filtered.length} result(s){applied ? ` for “${applied}”` : ''}{needsVolunteersOnly ? ' needing volunteers' : ''}.</p>}
         {filtered.length===0 ? <div className="wire-card" style={{textAlign:'center', padding:24}}>{posts.length===0 ? 'No posts yet. Check back soon for new opportunities.' : `No posts match "${applied}"`}</div> : filtered.map(p=>(

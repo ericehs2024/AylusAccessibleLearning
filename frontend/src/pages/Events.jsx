@@ -14,12 +14,13 @@ function EventCard({ post, branchName, done }) {
       <div
         style={{
           position: 'absolute',
-          top: 10,
-          right: 14,
+          top: -11,
+          right: 12,
           zIndex: 2,
           display: 'flex',
           gap: 6,
           alignItems: 'center',
+          pointerEvents: 'none',
         }}
       >
         {done ? (

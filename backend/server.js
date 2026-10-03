@@ -23,9 +23,16 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'superadmin123';
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// static for uploads
-const uploadDir = path.join(__dirname, 'uploads');
+// static for uploads — UPLOADS_PATH (prod: persistent dir outside app root), fallback to backend/uploads
+function resolveUploadDir() {
+  const raw = (process.env.UPLOADS_PATH || '').trim();
+  if (!raw) return path.join(__dirname, 'uploads');
+  if (path.isAbsolute(raw)) return raw;
+  return path.join(__dirname, raw);
+}
+const uploadDir = resolveUploadDir();
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+console.log(`[uploads] dir: ${uploadDir}`);
 app.use('/uploads', express.static(uploadDir));
 
 const storage = multer.diskStorage({
